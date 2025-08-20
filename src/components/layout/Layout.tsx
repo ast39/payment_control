@@ -8,7 +8,8 @@ import {
   LogOut, 
   User,
   Menu,
-  X
+  X,
+  Copy
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -21,6 +22,7 @@ const Layout: React.FC = () => {
   const navigation = [
     { name: 'Дашборд', href: '/dashboard', icon: Calendar },
     { name: 'Платежи', href: '/payments', icon: CreditCard },
+    { name: 'Посевы', href: '/seeding', icon: Copy },
     { name: 'Настройки', href: '/settings', icon: Settings },
   ];
 

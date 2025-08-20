@@ -8,6 +8,7 @@ const authRoutes = require('./routes/auth');
 const paymentRoutes = require('./routes/payments');
 const settingsRoutes = require('./routes/settings');
 const dashboardRoutes = require('./routes/dashboard');
+const seedingRoutes = require('./routes/seeding');
 
 // Демон для уведомлений о платежах
 const { startNotificationDaemon } = require('./scripts/paymentNotifier');
@@ -29,6 +30,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/seeding', seedingRoutes);
 
 // Middleware для проверки JWT токена
 const authenticateToken = require('./middleware/auth');

@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/auth/Login';
 import Dashboard from './components/dashboard/Dashboard';
 import Payments from './components/payments/Payments';
+import Seeding from './components/seeding/Seeding';
 import Settings from './components/settings/Settings';
 import Layout from './components/layout/Layout';
 
@@ -38,6 +39,7 @@ const AppRoutes: React.FC = () => {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="payments" element={<Payments />} />
+        <Route path="seeding" element={<Seeding />} />
         <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>
