@@ -24,23 +24,10 @@ db.serialize(() => {
     title TEXT NOT NULL,
     description TEXT,
     amount DECIMAL(10,2) NOT NULL,
-    payment_date DATE NOT NULL,
+    payment_date DATE,
     due_date DATE NOT NULL,
-    status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'paid', 'overdue')),
-    frequency TEXT DEFAULT 'once' CHECK(frequency IN ('once', 'daily', 'weekly', 'monthly', 'yearly')),
-    end_date DATE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users (id)
-  )`);
-
-  // Таблица истории платежей
-  db.run(`CREATE TABLE IF NOT EXISTS payment_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    payment_id INTEGER NOT NULL,
-    amount_paid DECIMAL(10,2) NOT NULL,
-    payment_date DATE NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (payment_id) REFERENCES payments (id)
   )`);
 
   // Таблица настроек пользователя
@@ -58,8 +45,6 @@ db.serialize(() => {
   // Создаем индексы для оптимизации
   db.run('CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments(user_id)');
   db.run('CREATE INDEX IF NOT EXISTS idx_payments_due_date ON payments(due_date)');
-  db.run('CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status)');
-  db.run('CREATE INDEX IF NOT EXISTS idx_payment_history_payment_id ON payment_history(payment_id)');
 
   console.log('Таблицы созданы успешно');
 

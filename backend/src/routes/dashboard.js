@@ -15,38 +15,29 @@ router.get('/calendar/:year/:month', (req, res) => {
   const userId = req.user.id;
   const db = new sqlite3.Database(dbPath);
 
-  // Сначала обновляем статусы просроченных платежей для этого месяца
-  db.run(`
-    UPDATE payments 
-    SET status = 'overdue' 
-    WHERE user_id = ? AND status = 'pending' AND due_date < date('now')
-      AND substr(due_date, 1, 4) = ? AND substr(due_date, 6, 2) = ?
-  `, [userId, year, month.padStart(2, '0')], (err) => {
-    if (err) {
-      console.error('Ошибка обновления просроченных платежей для календаря:', err);
-    }
-  });
+  console.log('=== CALENDAR ROUTE ===');
+  console.log('Params:', { year, month });
+  console.log('userId:', userId);
+
+
   
 
 
   // Получаем все платежи для указанного месяца
   const query = `
-    SELECT p.*, 
-           COUNT(ph.id) as payment_count,
-           SUM(ph.amount_paid) as total_paid
+    SELECT p.*
     FROM payments p
-    LEFT JOIN payment_history ph ON p.id = ph.payment_id
     WHERE p.user_id = ? 
-      AND substr(p.due_date, 1, 4) = ?
-      AND substr(p.due_date, 6, 2) = ?
-    GROUP BY p.id
+      AND substr(p.due_date, 1, 4) = ? AND substr(p.due_date, 6, 2) = ?
     ORDER BY p.due_date ASC
   `;
   
 
   
+  console.log('Calendar query params:', [userId, year, month.padStart(2, '0')]);
   db.all(query, [userId, year, month.padStart(2, '0')], (err, payments) => {
     if (err) {
+      console.error('Calendar DB error:', err);
       db.close();
       return res.status(500).json({ 
         error: 'Ошибка базы данных',
@@ -54,34 +45,40 @@ router.get('/calendar/:year/:month', (req, res) => {
       });
     }
     
+    console.log('Calendar payments found:', payments.length);
+    console.log('First few payments:', payments.slice(0, 3));
+    
 
 
     // Группируем платежи по дням
     const calendarData = {};
     payments.forEach(payment => {
       const day = payment.due_date.split('-')[2];
-      if (!calendarData[day]) {
-        calendarData[day] = [];
+      // Убираем ведущий ноль из дня (05 -> 5, 07 -> 7)
+      const dayKey = day.replace(/^0+/, '');
+      
+      if (!calendarData[dayKey]) {
+        calendarData[dayKey] = [];
       }
       
-      // Определяем цвет платежа
+      // Определяем цвет платежа по новым правилам
       let color = 'blue'; // запланированный
-      if (payment.status === 'paid') {
+      if (payment.payment_date && payment.payment_date !== null && payment.payment_date !== 'null') {
         color = 'green'; // оплачен
-      } else if (payment.status === 'overdue') {
-        color = 'red'; // просрочен
       } else {
         const dueDate = new Date(payment.due_date);
         const today = new Date();
         const diffTime = dueDate.getTime() - today.getTime();
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         
-        if (diffDays <= 5 && diffDays >= 0) {
+        if (diffDays < 0) {
+          color = 'red'; // просрочен
+        } else if (diffDays <= 5) {
           color = 'yellow'; // менее 5 дней
         }
       }
       
-      calendarData[day].push({
+      calendarData[dayKey].push({
         ...payment,
         color
       });
@@ -98,31 +95,29 @@ router.get('/stats', (req, res) => {
   const { month, year } = req.query; // Получаем месяц и год из query параметров
   const db = new sqlite3.Database(dbPath);
 
-  // Сначала обновляем статусы просроченных платежей
-  db.run(`
-    UPDATE payments 
-    SET status = 'overdue' 
-    WHERE user_id = ? AND status = 'pending' AND due_date < date('now')
-  `, [userId], (err) => {
-    if (err) {
-      console.error('Ошибка обновления просроченных платежей:', err);
-    }
-  });
+  console.log('=== STATS ROUTE ===');
+  console.log('Query params:', { month, year });
+  console.log('userId:', userId);
+
+  // Статусы теперь определяются автоматически по датам
 
   // Получаем статистику за выбранный месяц
   const monthFilter = month && year ? `AND substr(due_date, 1, 4) = ? AND substr(due_date, 6, 2) = ?` : '';
   const monthParams = month && year ? [userId, year, month.padStart(2, '0')] : [userId];
   
+  console.log('monthFilter:', monthFilter);
+  console.log('monthParams:', monthParams);
+  
   db.get(`
     SELECT 
       COUNT(*) as total_payments,
-      SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_payments,
-      SUM(CASE WHEN status = 'paid' THEN 1 ELSE 0 END) as paid_payments,
-      SUM(CASE WHEN status = 'overdue' THEN 1 ELSE 0 END) as overdue_payments,
+      SUM(CASE WHEN payment_date IS NULL AND due_date >= date('now') THEN 1 ELSE 0 END) as pending_payments,
+      SUM(CASE WHEN payment_date IS NOT NULL THEN 1 ELSE 0 END) as paid_payments,
+      SUM(CASE WHEN payment_date IS NULL AND due_date < date('now') THEN 1 ELSE 0 END) as overdue_payments,
       SUM(amount) as total_amount,
-      SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END) as paid_amount,
-      SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END) as pending_amount,
-      SUM(CASE WHEN status = 'overdue' THEN amount ELSE 0 END) as overdue_amount
+      SUM(CASE WHEN payment_date IS NOT NULL THEN amount ELSE 0 END) as paid_amount,
+      SUM(CASE WHEN payment_date IS NULL AND due_date >= date('now') THEN amount ELSE 0 END) as pending_amount,
+      SUM(CASE WHEN payment_date IS NULL AND due_date < date('now') THEN amount ELSE 0 END) as overdue_amount
     FROM payments 
     WHERE user_id = ? ${monthFilter}
   `, monthParams, (err, stats) => {
@@ -142,7 +137,7 @@ router.get('/stats', (req, res) => {
     
     db.all(`
       SELECT * FROM payments 
-      WHERE user_id = ? AND status = 'pending' ${upcomingFilter}
+      WHERE user_id = ? AND payment_date IS NULL AND due_date >= date('now') ${upcomingFilter}
       ORDER BY due_date ASC 
       LIMIT 10
     `, upcomingParams, (err, upcomingPayments) => {
@@ -160,7 +155,7 @@ router.get('/stats', (req, res) => {
       
       db.all(`
         SELECT * FROM payments 
-        WHERE user_id = ? AND (status = 'overdue' OR (status = 'pending' AND due_date < date('now')))
+        WHERE user_id = ? AND payment_date IS NULL AND due_date < date('now')
           ${overdueFilter}
         ORDER BY due_date ASC
       `, overdueParams, (err, overduePayments) => {
@@ -178,7 +173,7 @@ router.get('/stats', (req, res) => {
         
         db.all(`
           SELECT * FROM payments 
-          WHERE user_id = ? AND status = 'paid' ${completedFilter}
+          WHERE user_id = ? AND payment_date IS NOT NULL ${completedFilter}
           ORDER BY due_date DESC
           LIMIT 10
         `, completedParams, (err, completedPayments) => {
@@ -215,14 +210,9 @@ router.get('/day/:date', (req, res) => {
   const db = new sqlite3.Database(dbPath);
 
   db.all(`
-    SELECT p.*, 
-           COUNT(ph.id) as payment_count,
-           SUM(ph.amount_paid) as total_paid
-    FROM payments p
-    LEFT JOIN payment_history ph ON p.id = ph.payment_id
-    WHERE p.user_id = ? AND p.due_date = ?
-    GROUP BY p.id
-    ORDER BY p.amount DESC
+    SELECT * FROM payments
+    WHERE user_id = ? AND due_date = ?
+    ORDER BY amount DESC
   `, [userId, date], (err, payments) => {
     if (err) {
       db.close();

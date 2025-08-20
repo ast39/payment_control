@@ -7,29 +7,25 @@ interface Payment {
   title: string;
   description?: string;
   amount: number;
-  payment_date: string;
+  payment_date?: string;
   due_date: string;
-  status: 'pending' | 'paid' | 'overdue';
-  frequency: 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly';
-  end_date?: string;
 }
 
 interface PaymentModalProps {
   payment: Payment | null;
   onClose: () => void;
   onSaved: () => void;
+  initialDueDate?: string;
 }
 
-const PaymentModal: React.FC<PaymentModalProps> = ({ payment, onClose, onSaved }) => {
+const PaymentModal: React.FC<PaymentModalProps> = ({ payment, onClose, onSaved, initialDueDate }) => {
   const { token } = useAuth();
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     amount: '',
     payment_date: '',
-    due_date: '',
-    frequency: 'once' as 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly',
-    end_date: ''
+    due_date: ''
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -43,9 +39,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ payment, onClose, onSaved }
         description: payment.description || '',
         amount: payment.amount ? payment.amount.toString() : '',
         payment_date: payment.payment_date || '',
-        due_date: payment.due_date || '',
-        frequency: payment.frequency || 'once',
-        end_date: payment.end_date || ''
+        due_date: payment.due_date || ''
       });
     } else {
       const today = new Date().toISOString().split('T')[0];
@@ -53,13 +47,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ payment, onClose, onSaved }
         title: '',
         description: '',
         amount: '',
-        payment_date: today,
-        due_date: today,
-        frequency: 'once',
-        end_date: ''
+        payment_date: '',
+        due_date: initialDueDate || today
       });
     }
-  }, [payment]);
+  }, [payment, initialDueDate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,10 +67,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ payment, onClose, onSaved }
       return;
     }
 
-    if (formData.frequency !== 'once' && !formData.end_date) {
-      setError('Для периодических платежей укажите дату окончания');
-      return;
-    }
+    // Убрана валидация frequency
 
     try {
       setLoading(true);
@@ -96,11 +85,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ payment, onClose, onSaved }
         },
         body: JSON.stringify({
           title: formData.title,
+          description: formData.description || null,
           amount: parseFloat(formData.amount),
-          payment_date: formData.payment_date,
-          due_date: formData.due_date,
-          frequency: formData.frequency,
-          end_date: formData.end_date || null
+          payment_date: formData.payment_date || null,
+          due_date: formData.due_date
         })
       });
 
@@ -211,42 +199,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ payment, onClose, onSaved }
             />
           </div>
 
-          <div>
-            <label htmlFor="frequency" className="block text-sm font-medium text-gray-700 mb-2">
-              Периодичность
-            </label>
-            <select
-              id="frequency"
-              value={formData.frequency}
-              onChange={(e) => handleInputChange('frequency', e.target.value)}
-              className="input"
-            >
-              <option value="once">Однократно</option>
-              <option value="daily">Ежедневно</option>
-              <option value="weekly">Еженедельно</option>
-              <option value="monthly">Ежемесячно</option>
-              <option value="yearly">Ежегодно</option>
-            </select>
-          </div>
-
-          {formData.frequency !== 'once' && (
-            <div>
-              <label htmlFor="end_date" className="block text-sm font-medium text-gray-700 mb-2">
-                Дата окончания периода
-              </label>
-              <input
-                id="end_date"
-                type="date"
-                value={formData.end_date}
-                onChange={(e) => handleInputChange('end_date', e.target.value)}
-                className="input"
-                min={formData.due_date}
-              />
-              <p className="mt-1 text-sm text-gray-500">
-                Если не указать, платеж будет бессрочным
-              </p>
-            </div>
-          )}
+          {/* Убрано поле end_date */}
 
           {/* Кнопки */}
           <div className="flex space-x-3 pt-4 border-t border-gray-200">

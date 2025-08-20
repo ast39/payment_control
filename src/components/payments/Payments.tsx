@@ -14,19 +14,15 @@ import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import PaymentModal from './PaymentModal';
 import PaymentDetails from './PaymentDetails';
+import QuickPayModal from './QuickPayModal';
 
 interface Payment {
   id: number;
   title: string;
   description?: string;
   amount: number;
-  payment_date: string;
+  payment_date?: string;
   due_date: string;
-  status: 'pending' | 'paid' | 'overdue';
-  frequency: 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly';
-  end_date?: string;
-  payment_count?: number;
-  total_paid?: number;
 }
 
 const Payments: React.FC = () => {
@@ -37,13 +33,19 @@ const Payments: React.FC = () => {
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [showQuickPayModal, setShowQuickPayModal] = useState(false);
+  const [quickPayPayment, setQuickPayPayment] = useState<Payment | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState('current'); // current, previous, next, all
 
   const fetchPayments = async () => {
     if (!token) return;
 
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:3001/api/payments', {
+      const url = new URL('http://localhost:3001/api/payments');
+      url.searchParams.set('period', selectedPeriod);
+      
+      const response = await fetch(url.toString(), {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -60,7 +62,7 @@ const Payments: React.FC = () => {
 
   useEffect(() => {
     fetchPayments();
-  }, [token]);
+  }, [token, selectedPeriod]);
 
   const handleCreatePayment = () => {
     setEditingPayment(null);
@@ -96,14 +98,61 @@ const Payments: React.FC = () => {
     setShowDetails(true);
   };
 
+  const handleQuickPay = (payment: Payment) => {
+    setQuickPayPayment(payment);
+    setShowQuickPayModal(true);
+  };
+
   const handleModalClose = () => {
     setShowModal(false);
     setEditingPayment(null);
   };
 
+  const handleQuickPayClose = () => {
+    setShowQuickPayModal(false);
+    setQuickPayPayment(null);
+  };
+
+  const handleQuickPaySubmit = async (amount: number, paymentDate: string) => {
+    if (!token || !quickPayPayment) return;
+
+    try {
+      const response = await fetch(`http://localhost:3001/api/payments/${quickPayPayment.id}/pay`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          amount_paid: amount,
+          payment_date: paymentDate
+        })
+      });
+      
+      if (response.ok) {
+        await fetchPayments();
+        handleQuickPayClose();
+      }
+    } catch (error) {
+      console.error('Ошибка отметки платежа как оплаченного:', error);
+    }
+  };
+
   const handlePaymentSaved = () => {
     fetchPayments();
     handleModalClose();
+  };
+
+  const getPaymentStatus = (payment: Payment) => {
+    if (payment.payment_date) {
+      return 'paid';
+    }
+    const dueDate = new Date(payment.due_date);
+    const now = new Date();
+    if (dueDate < now) {
+      return 'overdue';
+    }
+    return 'pending';
   };
 
   const getStatusIcon = (status: string) => {
@@ -128,17 +177,6 @@ const Payments: React.FC = () => {
     }
   };
 
-  const getFrequencyText = (frequency: string) => {
-    const frequencyMap = {
-      once: 'Однократно',
-      daily: 'Ежедневно',
-      weekly: 'Еженедельно',
-      monthly: 'Ежемесячно',
-      yearly: 'Ежегодно'
-    };
-    return frequencyMap[frequency as keyof typeof frequencyMap] || frequency;
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -161,6 +199,29 @@ const Payments: React.FC = () => {
         </button>
       </div>
 
+      {/* Селектор периода */}
+      <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2">
+          <label className="text-sm font-medium text-gray-700">Период:</label>
+          <select
+            value={selectedPeriod}
+            onChange={(e) => setSelectedPeriod(e.target.value)}
+            className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          >
+            <option value="previous">Предыдущий месяц</option>
+            <option value="current">Этот месяц</option>
+            <option value="next">Следующий месяц</option>
+            <option value="all">Все платежи</option>
+          </select>
+        </div>
+        <span className="text-sm text-gray-500">
+          {selectedPeriod === 'previous' && 'Показываем платежи предыдущего месяца'}
+          {selectedPeriod === 'current' && 'Показываем платежи текущего месяца'}
+          {selectedPeriod === 'next' && 'Показываем платежи следующего месяца'}
+          {selectedPeriod === 'all' && 'Показываем все платежи'}
+        </span>
+      </div>
+
       {/* Список платежей */}
       <div className="card">
         {payments.length > 0 ? (
@@ -171,7 +232,7 @@ const Payments: React.FC = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Название
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Сумма
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -180,10 +241,8 @@ const Payments: React.FC = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Статус
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Периодичность
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  {/* Убрана колонка Дата окончания */}
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Действия
                   </th>
                 </tr>
@@ -198,50 +257,40 @@ const Payments: React.FC = () => {
                           <div className="text-sm font-medium text-gray-900">
                             {payment.title}
                           </div>
-                          {payment.status === 'paid' && payment.payment_count && payment.payment_count > 0 && (
-                            <div className="text-sm text-gray-500">
-                              Оплачено: {payment.payment_count} раз
-                            </div>
-                          )}
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
                       <div className="text-sm font-medium text-gray-900">
                         {payment.amount} ₽
                       </div>
-                      {payment.status === 'paid' && payment.total_paid && payment.total_paid > 0 && (
-                        <div className="text-sm text-gray-500">
-                          Оплачено: {payment.total_paid} ₽
-                        </div>
-                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
                         {format(new Date(payment.due_date), 'dd.MM.yyyy', { locale: ru })}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap text-left">
                       <div className="flex items-center">
-                        {getStatusIcon(payment.status)}
-                        <span className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(payment.status)}`}>
-                          {payment.status === 'pending' ? 'Ожидает' : 
-                           payment.status === 'paid' ? 'Оплачен' : 'Просрочен'}
+                        {getStatusIcon(getPaymentStatus(payment))}
+                        <span className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(getPaymentStatus(payment))}`}>
+                          {getPaymentStatus(payment) === 'pending' ? 'Ожидает' : 
+                           getPaymentStatus(payment) === 'paid' ? 'Оплачен' : 'Просрочен'}
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {getFrequencyText(payment.frequency)}
-                      </div>
-                      {payment.end_date && (
-                        <div className="text-sm text-gray-500">
-                          До {format(new Date(payment.end_date), 'dd.MM.yyyy', { locale: ru })}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex items-center space-x-2">
+                    {/* Убрана ячейка end_date */}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-left">
+                      <div className="flex items-center space-x-2 justify-end">
+                        {getPaymentStatus(payment) !== 'paid' && (
+                          <button
+                            onClick={() => handleQuickPay(payment)}
+                            className="text-success-600 hover:text-success-900 p-1"
+                            title="Отметить как оплаченный"
+                          >
+                            <CheckCircle size={16} />
+                          </button>
+                        )}
                         <button
                           onClick={() => handleViewDetails(payment)}
                           className="text-primary-600 hover:text-primary-900 p-1"
@@ -305,6 +354,15 @@ const Payments: React.FC = () => {
           payment={selectedPayment}
           onClose={() => setShowDetails(false)}
           onUpdated={fetchPayments}
+        />
+      )}
+
+      {/* Модальное окно быстрой оплаты */}
+      {showQuickPayModal && quickPayPayment && (
+        <QuickPayModal
+          payment={quickPayPayment}
+          onClose={handleQuickPayClose}
+          onSubmit={handleQuickPaySubmit}
         />
       )}
     </div>

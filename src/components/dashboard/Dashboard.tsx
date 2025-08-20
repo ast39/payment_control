@@ -4,17 +4,21 @@ import {
   CreditCard, 
   AlertTriangle,
   CheckCircle,
-  Clock
+  Clock,
+  Plus
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import PaymentModal from '../payments/PaymentModal';
+import PaymentDetails from '../payments/PaymentDetails';
 
 interface Payment {
   id: number;
   title: string;
+  description?: string;
   amount: number;
+  payment_date?: string;
   due_date: string;
-  status: 'pending' | 'paid' | 'overdue';
   color: string;
 }
 
@@ -38,6 +42,10 @@ const Dashboard: React.FC = () => {
   const [overduePayments, setOverduePayments] = useState<Payment[]>([]);
   const [completedPayments, setCompletedPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [showPaymentDetails, setShowPaymentDetails] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
 
   const fetchDashboardData = useCallback(async () => {
     if (!token) return;
@@ -79,7 +87,14 @@ const Dashboard: React.FC = () => {
           console.error('Неожиданный формат данных календаря:', rawCalendarData);
         }
         
+        // Подсчитываем общее количество платежей в календаре
+        let totalPaymentsInCalendar = 0;
+        Object.values(processedCalendarData).forEach(dayPayments => {
+          totalPaymentsInCalendar += dayPayments.length;
+        });
+        
         console.log('Обработанные данные календаря:', processedCalendarData);
+        console.log('Общее количество платежей в календаре:', totalPaymentsInCalendar);
         console.log('Устанавливаем calendarData:', processedCalendarData);
         setCalendarData(processedCalendarData);
       } else {
@@ -130,17 +145,47 @@ const Dashboard: React.FC = () => {
     return eachDayOfInterval({ start, end });
   };
 
-  const getPaymentColor = (status: string, dueDate: string) => {
-    if (status === 'paid') return 'bg-success-500';
-    if (status === 'overdue') return 'bg-danger-500';
-    
-    const due = new Date(dueDate);
-    const today = new Date();
-    const diffTime = due.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays <= 5 && diffDays >= 0) return 'bg-warning-500';
-    return 'bg-primary-500';
+  const getPaymentColorByColor = (color: string) => {
+    switch (color) {
+      case 'red': return 'bg-danger-500';
+      case 'green': return 'bg-success-500';
+      case 'yellow': return 'bg-warning-500';
+      case 'blue': return 'bg-primary-500';
+      default: return 'bg-primary-500';
+    }
+  };
+
+  const handleDayClick = (day: Date) => {
+    const formattedDate = format(day, 'yyyy-MM-dd');
+    setSelectedDate(formattedDate);
+    setShowPaymentModal(true);
+  };
+
+  const handlePaymentModalClose = () => {
+    setShowPaymentModal(false);
+    setSelectedDate('');
+  };
+
+  const handlePaymentSaved = () => {
+    setShowPaymentModal(false);
+    setSelectedDate('');
+    fetchDashboardData(); // Перезагружаем данные
+  };
+
+  const handlePaymentClick = (payment: Payment) => {
+    setSelectedPayment(payment);
+    setShowPaymentDetails(true);
+  };
+
+  const handlePaymentDetailsClose = () => {
+    setShowPaymentDetails(false);
+    setSelectedPayment(null);
+  };
+
+  const handlePaymentUpdated = () => {
+    setShowPaymentDetails(false);
+    setSelectedPayment(null);
+    fetchDashboardData(); // Перезагружаем данные
   };
 
   if (loading) {
@@ -217,28 +262,61 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Календарь */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-gray-900">Календарь платежей</h2>
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={goToPreviousMonth}
-              className="p-2 text-gray-400 hover:text-gray-600"
-            >
-              ←
-            </button>
-            <span className="text-lg font-medium text-gray-900">
-              {format(currentDate, 'MMMM yyyy', { locale: ru })}
-            </span>
-            <button
-              onClick={goToNextMonth}
-              className="p-2 text-gray-400 hover:text-gray-600"
-            >
-              →
-            </button>
+              {/* Календарь */}
+        <div className="card">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-semibold text-gray-900">Календарь платежей</h2>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={goToPreviousMonth}
+                className="p-2 text-gray-400 hover:text-gray-600"
+              >
+                ←
+              </button>
+              <span className="text-lg font-medium text-gray-900">
+                {format(currentDate, 'MMMM yyyy', { locale: ru })}
+              </span>
+              <button
+                onClick={goToNextMonth}
+                className="p-2 text-gray-400 hover:text-gray-600"
+              >
+                →
+              </button>
+            </div>
           </div>
-        </div>
+          
+          {/* Отладка календаря */}
+          {(() => {
+            const totalDays = getDaysInMonth().length;
+            const totalPaymentsInCalendar = Object.values(calendarData).reduce((sum, dayPayments) => sum + dayPayments.length, 0);
+            const daysWithPayments = Object.keys(calendarData).length;
+            
+            console.log('=== КАЛЕНДАРЬ ОТЛАДКА ===');
+            console.log('Всего дней в месяце:', totalDays);
+            console.log('Дней с платежами:', daysWithPayments);
+            console.log('Всего платежей в календаре:', totalPaymentsInCalendar);
+            console.log('calendarData:', calendarData);
+            console.log('========================');
+            
+            return (
+              <div className="mb-4 p-3 bg-gray-50 rounded-lg text-sm">
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <div className="font-semibold text-gray-700">{totalDays}</div>
+                    <div className="text-gray-500">дней в месяце</div>
+                  </div>
+                  <div>
+                    <div className="font-semibold text-gray-700">{daysWithPayments}</div>
+                    <div className="text-gray-500">дней с платежами</div>
+                  </div>
+                  <div>
+                    <div className="font-semibold text-gray-700">{totalPaymentsInCalendar}</div>
+                    <div className="text-gray-500">платежей в календаре</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
         <div className="grid grid-cols-7 gap-1">
           {/* Дни недели */}
@@ -255,11 +333,19 @@ const Dashboard: React.FC = () => {
             const isCurrentMonth = isSameMonth(day, currentDate);
             const isCurrentDay = isToday(day);
             
-                    // Отладка для конкретного дня
-        if (dayKey === '1' && isCurrentMonth) {
-          console.log(`День ${dayKey}:`, dayPayments);
-          console.log(`calendarData для дня ${dayKey}:`, calendarData[dayKey]);
-        }
+            // Отладка рендеринга дней
+            if (dayKey === '5' || dayKey === '7' || dayKey === '11') {
+              console.log(`=== РЕНДЕРИНГ ДЕНЬ ${dayKey} ===`);
+              console.log('day:', day);
+              console.log('dayKey:', dayKey);
+              console.log('dayPayments:', dayPayments);
+              console.log('calendarData[dayKey]:', calendarData[dayKey]);
+              console.log('isCurrentMonth:', isCurrentMonth);
+              console.log('isCurrentDay:', isCurrentDay);
+              console.log('day.toISOString():', day.toISOString());
+              console.log('format(day, "d"):', format(day, 'd'));
+              console.log('========================');
+            }
 
             return (
               <div
@@ -268,8 +354,19 @@ const Dashboard: React.FC = () => {
                   isCurrentMonth ? 'bg-white' : 'bg-gray-50'
                 } ${isCurrentDay ? 'ring-2 ring-primary-500' : ''}`}
               >
-                <div className="text-sm text-gray-900 mb-1">
-                  {format(day, 'd')}
+                <div className="flex items-center justify-between mb-1">
+                  <div className="text-sm text-gray-900">
+                    {format(day, 'd')}
+                  </div>
+                  {isCurrentMonth && (
+                    <button
+                      onClick={() => handleDayClick(day)}
+                      className="w-5 h-5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-full transition-colors flex items-center justify-center"
+                      title={`Создать платеж на ${format(day, 'dd.MM.yyyy', { locale: ru })}`}
+                    >
+                      <Plus size={12} />
+                    </button>
+                  )}
                 </div>
                 
                 {/* Платежи за день */}
@@ -277,8 +374,9 @@ const Dashboard: React.FC = () => {
                   {dayPayments.slice(0, 3).map((payment) => (
                     <div
                       key={payment.id}
-                      className={`text-xs p-1 rounded truncate text-white ${getPaymentColor(payment.status, payment.due_date)}`}
-                      title={`${payment.title} - ${payment.amount} ₽`}
+                      className={`text-xs p-1 rounded truncate text-white cursor-pointer hover:opacity-80 transition-opacity ${getPaymentColorByColor(payment.color)}`}
+                      title={`${payment.title} - ${payment.amount} ₽ (клик для просмотра)`}
+                      onClick={() => handlePaymentClick(payment)}
                     >
                       <div className="font-medium">{payment.title}</div>
                       <div className="text-xs opacity-90">{payment.amount} ₽</div>
@@ -367,6 +465,25 @@ const Dashboard: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Модальное окно создания платежа */}
+      {showPaymentModal && (
+        <PaymentModal
+          payment={null}
+          onClose={handlePaymentModalClose}
+          onSaved={handlePaymentSaved}
+          initialDueDate={selectedDate}
+        />
+      )}
+
+      {/* Модальное окно деталей платежа */}
+      {showPaymentDetails && selectedPayment && (
+        <PaymentDetails
+          payment={selectedPayment}
+          onClose={handlePaymentDetailsClose}
+          onUpdated={handlePaymentUpdated}
+        />
+      )}
     </div>
   );
 };

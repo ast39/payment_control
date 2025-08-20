@@ -4,9 +4,6 @@ import {
   X, 
   CreditCard, 
   Calendar, 
-  DollarSign, 
-  Repeat, 
-  History,
   CheckCircle,
   AlertTriangle,
   Clock
@@ -14,24 +11,15 @@ import {
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 
-interface PaymentHistory {
-  id: number;
-  amount_paid: number;
-  payment_date: string;
-  created_at: string;
-}
+// Убран интерфейс PaymentHistory
 
 interface Payment {
   id: number;
   title: string;
   description?: string;
   amount: number;
-  payment_date: string;
+  payment_date?: string;
   due_date: string;
-  status: 'pending' | 'paid' | 'overdue';
-  frequency: 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly';
-  end_date?: string;
-  history?: PaymentHistory[];
 }
 
 interface PaymentDetailsProps {
@@ -49,6 +37,18 @@ const PaymentDetails: React.FC<PaymentDetailsProps> = ({ payment, onClose, onUpd
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const getPaymentStatus = (payment: Payment) => {
+    if (payment.payment_date) {
+      return 'paid';
+    }
+    const dueDate = new Date(payment.due_date);
+    const now = new Date();
+    if (dueDate < now) {
+      return 'overdue';
+    }
+    return 'pending';
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -83,17 +83,6 @@ const PaymentDetails: React.FC<PaymentDetailsProps> = ({ payment, onClose, onUpd
     }
   };
 
-  const getFrequencyText = (frequency: string) => {
-    const frequencyMap = {
-      once: 'Однократно',
-      daily: 'Ежедневно',
-      weekly: 'Еженедельно',
-      monthly: 'Ежемесячно',
-      yearly: 'Ежегодно'
-    };
-    return frequencyMap[frequency as keyof typeof frequencyMap] || frequency;
-  };
-
   const handleMarkAsPaid = async () => {
     if (!token) return;
 
@@ -115,11 +104,7 @@ const PaymentDetails: React.FC<PaymentDetailsProps> = ({ payment, onClose, onUpd
 
       if (response.ok) {
         onUpdated();
-        setShowPaymentForm(false);
-        setPaymentForm({
-          amount_paid: payment.amount.toString(),
-          payment_date: new Date().toISOString().split('T')[0]
-        });
+        onClose(); // Закрываем модалку после успешного сохранения
       } else {
         const errorData = await response.json();
         setError(errorData.message || 'Ошибка отметки платежа');
@@ -132,8 +117,7 @@ const PaymentDetails: React.FC<PaymentDetailsProps> = ({ payment, onClose, onUpd
     }
   };
 
-  const totalPaid = payment.history?.reduce((sum, h) => sum + h.amount_paid, 0) || 0;
-  const remainingAmount = payment.amount - totalPaid;
+  // Убраны переменные totalPaid и remainingAmount
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -161,13 +145,13 @@ const PaymentDetails: React.FC<PaymentDetailsProps> = ({ payment, onClose, onUpd
             <div className="space-y-4">
               <div>
                 <h3 className="text-lg font-medium text-gray-900 mb-2">{payment.title}</h3>
-                {payment.description && (
+                {payment.description && payment.description.trim() !== '' && (
                   <p className="text-sm text-gray-600 mb-3">{payment.description}</p>
                 )}
                 <div className="flex items-center space-x-2">
-                  {getStatusIcon(payment.status)}
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(payment.status)}`}>
-                    {getStatusText(payment.status)}
+                  {getStatusIcon(getPaymentStatus(payment))}
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(getPaymentStatus(payment))}`}>
+                    {getStatusText(getPaymentStatus(payment))}
                   </span>
                 </div>
               </div>
@@ -178,19 +162,7 @@ const PaymentDetails: React.FC<PaymentDetailsProps> = ({ payment, onClose, onUpd
                   <span className="text-lg font-semibold text-gray-900">{payment.amount} ₽</span>
                 </div>
                 
-                {totalPaid > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Оплачено:</span>
-                    <span className="text-sm font-medium text-success-600">{totalPaid} ₽</span>
-                  </div>
-                )}
-                
-                {remainingAmount > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Осталось:</span>
-                    <span className="text-sm font-medium text-warning-600">{remainingAmount} ₽</span>
-                  </div>
-                )}
+                {/* Убраны поля totalPaid и remainingAmount */}
               </div>
             </div>
 
@@ -207,33 +179,27 @@ const PaymentDetails: React.FC<PaymentDetailsProps> = ({ payment, onClose, onUpd
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-2">
-                  <Repeat className="w-4 h-4 text-gray-400" />
-                  <div>
-                    <div className="text-sm text-gray-600">Периодичность</div>
-                    <div className="text-sm font-medium text-gray-900">
-                      {getFrequencyText(payment.frequency)}
-                    </div>
-                  </div>
-                </div>
-
-                {payment.end_date && (
+                {payment.payment_date && (
                   <div className="flex items-center space-x-2">
-                    <Calendar className="w-4 h-4 text-gray-400" />
+                    <CheckCircle className="w-4 h-4 text-success-600" />
                     <div>
-                      <div className="text-sm text-gray-600">Дата окончания</div>
-                      <div className="text-sm font-medium text-gray-900">
-                        {format(new Date(payment.end_date), 'dd MMMM yyyy', { locale: ru })}
+                      <div className="text-sm text-gray-600">Дата оплаты</div>
+                      <div className="text-sm font-medium text-success-600">
+                        {format(new Date(payment.payment_date), 'dd MMMM yyyy', { locale: ru })}
                       </div>
                     </div>
                   </div>
                 )}
+
+                {/* Убрана периодичность */}
+
+                {/* Убрана дата окончания */}
               </div>
             </div>
           </div>
 
           {/* Кнопка отметки как оплаченного */}
-          {payment.status !== 'paid' && (
+          {getPaymentStatus(payment) !== 'paid' && (
             <div className="pt-4 border-t border-gray-200">
               <button
                 onClick={() => setShowPaymentForm(true)}
@@ -261,16 +227,15 @@ const PaymentDetails: React.FC<PaymentDetailsProps> = ({ payment, onClose, onUpd
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Сумма оплаты
                   </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max={remainingAmount}
-                    value={paymentForm.amount_paid}
-                    onChange={(e) => setPaymentForm(prev => ({ ...prev, amount_paid: e.target.value }))}
-                    className="input"
-                    placeholder="0.00"
-                  />
+                                      <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={paymentForm.amount_paid}
+                      onChange={(e) => setPaymentForm(prev => ({ ...prev, amount_paid: e.target.value }))}
+                      className="input"
+                      placeholder="0.00"
+                    />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -308,36 +273,7 @@ const PaymentDetails: React.FC<PaymentDetailsProps> = ({ payment, onClose, onUpd
             </div>
           )}
 
-          {/* История платежей */}
-          {payment.history && payment.history.length > 0 && (
-            <div className="pt-4 border-t border-gray-200">
-              <h4 className="font-medium text-gray-900 mb-3 flex items-center">
-                <History className="w-4 h-4 mr-2" />
-                История платежей
-              </h4>
-              
-              <div className="space-y-2">
-                {payment.history.map((record) => (
-                  <div key={record.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <DollarSign className="w-4 h-4 text-success-600" />
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {record.amount_paid} ₽
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {format(new Date(record.payment_date), 'dd.MM.yyyy', { locale: ru })}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {format(new Date(record.created_at), 'HH:mm', { locale: ru })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* История платежей убрана */}
         </div>
       </div>
     </div>
