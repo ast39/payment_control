@@ -148,10 +148,33 @@ const Dashboard: React.FC = () => {
     setCurrentDate(new Date());
   };
 
-  const getDaysInMonth = () => {
+  const getDaysInMonth = (): (Date | null)[] => {
     const start = startOfMonth(currentDate);
     const end = endOfMonth(currentDate);
-    return eachDayOfInterval({ start, end });
+    
+    // Получаем день недели для первого дня месяца (0 = воскресенье, 1 = понедельник)
+    const firstDayOfWeek = start.getDay();
+    
+    // Вычисляем сколько пустых дней нужно добавить в начале
+    // В нашем календаре неделя начинается с понедельника (1), а не с воскресенья (0)
+    let emptyDaysBefore = firstDayOfWeek - 1;
+    if (emptyDaysBefore < 0) emptyDaysBefore = 6; // Если воскресенье, то добавляем 6 дней
+    
+    // Создаем массив дней месяца
+    const monthDays = eachDayOfInterval({ start, end });
+    
+    // Добавляем пустые дни в начало для правильного выравнивания
+    const result: (Date | null)[] = [];
+    
+    // Добавляем пустые дни в начале
+    for (let i = 0; i < emptyDaysBefore; i++) {
+      result.push(null);
+    }
+    
+    // Добавляем дни месяца
+    result.push(...monthDays);
+    
+    return result;
   };
 
   const getPaymentColorByColor = (color: string) => {
@@ -337,6 +360,18 @@ const Dashboard: React.FC = () => {
 
           {/* Дни месяца */}
           {getDaysInMonth().map((day, index) => {
+            // Если день null (пустой день в начале месяца), рендерим пустую ячейку
+            if (day === null) {
+              return (
+                <div
+                  key={`empty-${index}`}
+                  className="p-2 min-h-[80px] border border-gray-200 bg-gray-50"
+                >
+                  {/* Пустая ячейка */}
+                </div>
+              );
+            }
+
             const dayKey = format(day, 'd');
             const dayPayments = calendarData[dayKey] || [];
             const isCurrentMonth = isSameMonth(day, currentDate);
