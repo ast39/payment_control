@@ -12,7 +12,7 @@ router.use(authenticateToken);
 // Получить все платежи пользователя
 router.get('/', (req, res) => {
   const userId = req.user.id;
-  const { period = 'current' } = req.query; // Получаем период из query параметров
+  const { period = 'current', currency_id, category_id, payment_method_id } = req.query; // Получаем все параметры фильтрации
   const db = new sqlite3.Database(dbPath);
 
   let whereClause = 'WHERE p.user_id = ?';
@@ -34,6 +34,22 @@ router.get('/', (req, res) => {
     default:
       whereClause += ` AND substr(p.due_date, 1, 7) = substr(date('now'), 1, 7)`;
       break;
+  }
+
+  // Добавляем фильтры по валюте, категории и способу оплаты
+  if (currency_id) {
+    whereClause += ` AND p.currency_id = ?`;
+    params.push(currency_id);
+  }
+
+  if (category_id) {
+    whereClause += ` AND p.category_id = ?`;
+    params.push(category_id);
+  }
+
+  if (payment_method_id) {
+    whereClause += ` AND p.payment_method_id = ?`;
+    params.push(payment_method_id);
   }
 
   const query = `

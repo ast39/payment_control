@@ -46,6 +46,12 @@ const Payments: React.FC = () => {
   const [showQuickPayModal, setShowQuickPayModal] = useState(false);
   const [quickPayPayment, setQuickPayPayment] = useState<Payment | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState('current'); // current, previous, next, all
+  const [selectedCurrency, setSelectedCurrency] = useState<number | ''>('');
+  const [selectedCategory, setSelectedCategory] = useState<number | ''>('');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<number | ''>('');
+  const [currencies, setCurrencies] = useState<Array<{id: number, name: string, code: string, symbol: string}>>([]);
+  const [categories, setCategories] = useState<Array<{id: number, name: string, color: string}>>([]);
+  const [paymentMethods, setPaymentMethods] = useState<Array<{id: number, name: string}>>([]);
 
   const fetchPayments = async () => {
     if (!token) return;
@@ -54,6 +60,9 @@ const Payments: React.FC = () => {
       setLoading(true);
       const url = new URL('http://localhost:3001/api/payments');
       url.searchParams.set('period', selectedPeriod);
+      if (selectedCurrency) url.searchParams.set('currency_id', selectedCurrency.toString());
+      if (selectedCategory) url.searchParams.set('category_id', selectedCategory.toString());
+      if (selectedPaymentMethod) url.searchParams.set('payment_method_id', selectedPaymentMethod.toString());
       
       const response = await fetch(url.toString(), {
         headers: { Authorization: `Bearer ${token}` }
@@ -70,9 +79,48 @@ const Payments: React.FC = () => {
     }
   };
 
+  const fetchReferenceData = async () => {
+    if (!token) return;
+
+    try {
+      // Загружаем валюты
+      const currenciesResponse = await fetch('http://localhost:3001/api/currencies', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (currenciesResponse.ok) {
+        const currenciesData = await currenciesResponse.json();
+        setCurrencies(currenciesData);
+      }
+
+      // Загружаем категории
+      const categoriesResponse = await fetch('http://localhost:3001/api/categories', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (categoriesResponse.ok) {
+        const categoriesData = await categoriesResponse.json();
+        setCategories(categoriesData);
+      }
+
+      // Загружаем способы оплаты
+      const paymentMethodsResponse = await fetch('http://localhost:3001/api/payment-methods', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (paymentMethodsResponse.ok) {
+        const paymentMethodsData = await paymentMethodsResponse.json();
+        setPaymentMethods(paymentMethodsData);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки справочников:', error);
+    }
+  };
+
   useEffect(() => {
     fetchPayments();
-  }, [token, selectedPeriod]);
+  }, [token, selectedPeriod, selectedCurrency, selectedCategory, selectedPaymentMethod]);
+
+  useEffect(() => {
+    fetchReferenceData();
+  }, [token]);
 
   const handleCreatePayment = () => {
     setEditingPayment(null);
@@ -148,6 +196,12 @@ const Payments: React.FC = () => {
     }
   };
 
+  const handleResetFilters = () => {
+    setSelectedCurrency('');
+    setSelectedCategory('');
+    setSelectedPaymentMethod('');
+  };
+
   const handlePaymentSaved = () => {
     fetchPayments();
     handleModalClose();
@@ -209,27 +263,85 @@ const Payments: React.FC = () => {
         </button>
       </div>
 
-      {/* Селектор периода */}
-      <div className="flex items-center space-x-4">
-        <div className="flex items-center space-x-2">
-          <label className="text-sm font-medium text-gray-700">Период:</label>
-          <select
-            value={selectedPeriod}
-            onChange={(e) => setSelectedPeriod(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          >
-            <option value="previous">Предыдущий месяц</option>
-            <option value="current">Этот месяц</option>
-            <option value="next">Следующий месяц</option>
-            <option value="all">Все платежи</option>
-          </select>
+      {/* Форма фильтров */}
+      <div className="card">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          {/* Период */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Период</label>
+            <select
+              value={selectedPeriod}
+              onChange={(e) => setSelectedPeriod(e.target.value)}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="previous">Предыдущий месяц</option>
+              <option value="current">Этот месяц</option>
+              <option value="next">Следующий месяц</option>
+              <option value="all">Все платежи</option>
+            </select>
+          </div>
+
+          {/* Валюта */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Валюта</label>
+            <select
+              value={selectedCurrency}
+              onChange={(e) => setSelectedCurrency(e.target.value ? Number(e.target.value) : '')}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="">Все валюты</option>
+              {currencies.map((currency) => (
+                <option key={currency.id} value={currency.id}>
+                  {currency.name} ({currency.symbol})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Категория */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Категория</label>
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value ? Number(e.target.value) : '')}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="">Все категории</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Способ оплаты */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Способ оплаты</label>
+            <select
+              value={selectedPaymentMethod}
+              onChange={(e) => setSelectedPaymentMethod(e.target.value ? Number(e.target.value) : '')}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="">Все способы</option>
+              {paymentMethods.map((method) => (
+                <option key={method.id} value={method.id}>
+                  {method.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Кнопка сброса */}
+          <div className="flex items-end">
+            <button
+              onClick={handleResetFilters}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              Сбросить фильтры
+            </button>
+          </div>
         </div>
-        <span className="text-sm text-gray-500">
-          {selectedPeriod === 'previous' && 'Показываем платежи предыдущего месяца'}
-          {selectedPeriod === 'current' && 'Показываем платежи текущего месяца'}
-          {selectedPeriod === 'next' && 'Показываем платежи следующего месяца'}
-          {selectedPeriod === 'all' && 'Показываем все платежи'}
-        </span>
       </div>
 
       {/* Список платежей */}
