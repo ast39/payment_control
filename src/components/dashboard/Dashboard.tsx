@@ -17,9 +17,18 @@ interface Payment {
   title: string;
   description?: string;
   amount: number;
+  currency_id?: number;
+  currency_name?: string;
+  currency_code?: string;
+  currency_symbol?: string;
+  category_id?: number;
+  category_name?: string;
+  category_color?: string;
+  payment_method_id?: number;
+  payment_method_name?: string;
   payment_date?: string;
   due_date: string;
-  color: string;
+  color?: string; // Добавляется динамически в роуте dashboard
 }
 
 interface DashboardStats {
@@ -374,12 +383,12 @@ const Dashboard: React.FC = () => {
                   {dayPayments.slice(0, 3).map((payment) => (
                     <div
                       key={payment.id}
-                      className={`text-xs p-1 rounded truncate text-white cursor-pointer hover:opacity-80 transition-opacity ${getPaymentColorByColor(payment.color)}`}
-                      title={`${payment.title} - ${payment.amount} ₽ (клик для просмотра)`}
+                      className={`text-xs p-1 rounded truncate text-white cursor-pointer hover:opacity-80 transition-opacity ${getPaymentColorByColor(payment.color || 'blue')}`}
+                      title={`${payment.title} - ${payment.amount} ${payment.currency_symbol || '₽'} (клик для просмотра)`}
                       onClick={() => handlePaymentClick(payment)}
                     >
                       <div className="font-medium">{payment.title}</div>
-                      <div className="text-xs opacity-90">{payment.amount} ₽</div>
+                      <div className="text-xs opacity-90">{payment.amount} {payment.currency_symbol || '₽'}</div>
                     </div>
                   ))}
                   {dayPayments.length > 3 && (
@@ -410,7 +419,7 @@ const Dashboard: React.FC = () => {
                       {format(new Date(payment.due_date), 'dd MMMM yyyy', { locale: ru })}
                     </p>
                   </div>
-                  <span className="font-semibold text-blue-600">{payment.amount} ₽</span>
+                  <span className="font-semibold text-blue-600">{payment.amount} {payment.currency_symbol || '₽'}</span>
                 </div>
               ))}
             </div>
@@ -433,7 +442,7 @@ const Dashboard: React.FC = () => {
                       {format(new Date(payment.due_date), 'dd MMMM yyyy', { locale: ru })}
                     </p>
                   </div>
-                  <span className="font-semibold text-red-600">{payment.amount} ₽</span>
+                  <span className="font-semibold text-red-600">{payment.amount} {payment.currency_symbol || '₽'}</span>
                 </div>
               ))}
             </div>
@@ -456,7 +465,7 @@ const Dashboard: React.FC = () => {
                       {format(new Date(payment.due_date), 'dd MMMM yyyy', { locale: ru })}
                     </p>
                   </div>
-                  <span className="font-semibold text-green-600">{payment.amount} ₽</span>
+                  <span className="font-semibold text-green-600">{payment.amount} {payment.currency_symbol || '₽'}</span>
                 </div>
               ))}
             </div>

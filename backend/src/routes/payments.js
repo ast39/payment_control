@@ -15,31 +15,38 @@ router.get('/', (req, res) => {
   const { period = 'current' } = req.query; // Получаем период из query параметров
   const db = new sqlite3.Database(dbPath);
 
-  let whereClause = 'WHERE user_id = ?';
+  let whereClause = 'WHERE p.user_id = ?';
   let params = [userId];
 
   switch (period) {
     case 'previous':
-      whereClause += ` AND substr(due_date, 1, 7) = substr(date('now', '-1 month'), 1, 7)`;
+      whereClause += ` AND substr(p.due_date, 1, 7) = substr(date('now', '-1 month'), 1, 7)`;
       break;
     case 'current':
-      whereClause += ` AND substr(due_date, 1, 7) = substr(date('now'), 1, 7)`;
+      whereClause += ` AND substr(p.due_date, 1, 7) = substr(date('now'), 1, 7)`;
       break;
     case 'next':
-      whereClause += ` AND substr(due_date, 1, 7) = substr(date('now', '+1 month'), 1, 7)`;
+      whereClause += ` AND substr(p.due_date, 1, 7) = substr(date('now', '+1 month'), 1, 7)`;
       break;
     case 'all':
       // Без дополнительных фильтров - все платежи
       break;
     default:
-      whereClause += ` AND substr(due_date, 1, 7) = substr(date('now'), 1, 7)`;
+      whereClause += ` AND substr(p.due_date, 1, 7) = substr(date('now'), 1, 7)`;
       break;
   }
 
   const query = `
-    SELECT * FROM payments
+    SELECT p.*, 
+           c.name as currency_name, c.code as currency_code, c.symbol as currency_symbol,
+           pc.name as category_name, pc.color as category_color,
+           pm.name as payment_method_name
+    FROM payments p
+    LEFT JOIN currencies c ON p.currency_id = c.id
+    LEFT JOIN payment_categories pc ON p.category_id = pc.id
+    LEFT JOIN payment_methods pm ON p.payment_method_id = pm.id
     ${whereClause}
-    ORDER BY due_date DESC
+    ORDER BY p.due_date DESC
   `;
 
   console.log('Payments query:', query);
@@ -65,7 +72,19 @@ router.get('/:id', (req, res) => {
   const userId = req.user.id;
   const db = new sqlite3.Database(dbPath);
 
-  db.get('SELECT * FROM payments WHERE id = ? AND user_id = ?', [id, userId], (err, payment) => {
+  const query = `
+    SELECT p.*, 
+           c.name as currency_name, c.code as currency_code, c.symbol as currency_symbol,
+           pc.name as category_name, pc.color as category_color,
+           pm.name as payment_method_name
+    FROM payments p
+    LEFT JOIN currencies c ON p.currency_id = c.id
+    LEFT JOIN payment_categories pc ON p.category_id = pc.id
+    LEFT JOIN payment_methods pm ON p.payment_method_id = pm.id
+    WHERE p.id = ? AND p.user_id = ?
+  `;
+
+  db.get(query, [id, userId], (err, payment) => {
     if (err) {
       db.close();
       return res.status(500).json({ 
@@ -95,8 +114,8 @@ router.post('/', (req, res) => {
   const userId = req.user.id;
   console.log('userId:', userId);
   
-  const { title, description, amount, payment_date, due_date } = req.body;
-  console.log('Извлеченные данные:', { title, description, amount, payment_date, due_date });
+  const { title, description, amount, currency_id, category_id, payment_method_id, payment_date, due_date } = req.body;
+  console.log('Извлеченные данные:', { title, description, amount, currency_id, category_id, payment_method_id, payment_date, due_date });
   
   // due_date - дата когда должен быть оплачен (обязательно)
   // payment_date - дата фактической оплаты (может быть null)
@@ -113,15 +132,15 @@ router.post('/', (req, res) => {
   const db = new sqlite3.Database(dbPath);
 
   console.log('SQL запрос:', `
-    INSERT INTO payments (user_id, title, description, amount, due_date)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO payments (user_id, title, description, amount, currency_id, category_id, payment_method_id, due_date)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
-  console.log('Параметры:', [userId, title, description || null, amount, due_date]);
+  console.log('Параметры:', [userId, title, description || null, amount, currency_id || 1, category_id || 1, payment_method_id || 1, due_date]);
   
   db.run(`
-    INSERT INTO payments (user_id, title, description, amount, due_date)
-    VALUES (?, ?, ?, ?, ?)
-  `, [userId, title, description || null, amount, due_date], 
+    INSERT INTO payments (user_id, title, description, amount, currency_id, category_id, payment_method_id, due_date)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `, [userId, title, description || null, amount, currency_id || 1, category_id || 1, payment_method_id || 1, due_date], 
   function(err) {
     if (err) {
       console.log('ОШИБКА SQL:', err);
@@ -150,7 +169,7 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   const { id } = req.params;
   const userId = req.user.id;
-  const { title, description, amount, payment_date, due_date } = req.body;
+  const { title, description, amount, currency_id, category_id, payment_method_id, payment_date, due_date } = req.body;
 
   const db = new sqlite3.Database(dbPath);
 
@@ -178,10 +197,13 @@ router.put('/:id', (req, res) => {
       SET title = COALESCE(?, title),
           description = COALESCE(?, description),
           amount = COALESCE(?, amount),
+          currency_id = COALESCE(?, currency_id),
+          category_id = COALESCE(?, category_id),
+          payment_method_id = COALESCE(?, payment_method_id),
           payment_date = COALESCE(?, payment_date),
           due_date = COALESCE(?, due_date)
       WHERE id = ? AND user_id = ?
-    `, [title, description, amount, payment_date, due_date, id, userId], (err) => {
+    `, [title, description, amount, currency_id, category_id, payment_method_id, payment_date, due_date, id, userId], (err) => {
       if (err) {
         db.close();
         return res.status(500).json({ 

@@ -18,8 +18,18 @@ interface Payment {
   title: string;
   description?: string;
   amount: number;
+  currency_id?: number;
+  currency_name?: string;
+  currency_code?: string;
+  currency_symbol?: string;
+  category_id?: number;
+  category_name?: string;
+  category_color?: string;
+  payment_method_id?: number;
+  payment_method_name?: string;
   payment_date?: string;
   due_date: string;
+  color?: string; // Добавляется динамически в роуте dashboard
 }
 
 interface PaymentDetailsProps {
@@ -159,10 +169,32 @@ const PaymentDetails: React.FC<PaymentDetailsProps> = ({ payment, onClose, onUpd
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Сумма:</span>
-                  <span className="text-lg font-semibold text-gray-900">{payment.amount} ₽</span>
+                  <span className="text-lg font-semibold text-gray-900">
+                    {payment.amount} {payment.currency_symbol || '₽'}
+                  </span>
                 </div>
                 
-                {/* Убраны поля totalPaid и remainingAmount */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Категория:</span>
+                  <div className="flex items-center space-x-2">
+                    <div 
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: payment.category_color || '#6B7280' }}
+                    />
+                    <span className="text-sm font-medium text-gray-900">
+                      {payment.category_name || 'Другое'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Способ оплаты:</span>
+                  <span className="text-sm font-medium text-gray-900">
+                    {payment.payment_method_name || 'Наличные'}
+                  </span>
+                </div>
+
+
               </div>
             </div>
 

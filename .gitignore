@@ -5,6 +5,7 @@ node_modules/
 # Production builds
 /build
 */build
+.bugs
 
 # Environment variables
 .env

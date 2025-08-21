@@ -21,8 +21,18 @@ interface Payment {
   title: string;
   description?: string;
   amount: number;
+  currency_id?: number;
+  currency_name?: string;
+  currency_code?: string;
+  currency_symbol?: string;
+  category_id?: number;
+  category_name?: string;
+  category_color?: string;
+  payment_method_id?: number;
+  payment_method_name?: string;
   payment_date?: string;
   due_date: string;
+  color?: string; // Добавляется динамически в роуте dashboard
 }
 
 const Payments: React.FC = () => {
@@ -239,6 +249,9 @@ const Payments: React.FC = () => {
                     Дата платежа
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Категория
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Статус
                   </th>
                   {/* Убрана колонка Дата окончания */}
@@ -262,12 +275,23 @@ const Payments: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <div className="text-sm font-medium text-gray-900">
-                        {payment.amount} ₽
+                        {payment.amount} {payment.currency_symbol || '₽'}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
                         {format(new Date(payment.due_date), 'dd.MM.yyyy', { locale: ru })}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div 
+                          className="w-3 h-3 rounded-full mr-2"
+                          style={{ backgroundColor: payment.category_color || '#6B7280' }}
+                        />
+                        <span className="text-sm text-gray-900">
+                          {payment.category_name || 'Другое'}
+                        </span>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-left">

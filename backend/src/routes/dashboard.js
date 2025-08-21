@@ -25,8 +25,14 @@ router.get('/calendar/:year/:month', (req, res) => {
 
   // Получаем все платежи для указанного месяца
   const query = `
-    SELECT p.*
+    SELECT p.*, 
+           c.name as currency_name, c.code as currency_code, c.symbol as currency_symbol,
+           pc.name as category_name, pc.color as category_color,
+           pm.name as payment_method_name
     FROM payments p
+    LEFT JOIN currencies c ON p.currency_id = c.id
+    LEFT JOIN payment_categories pc ON p.category_id = pc.id
+    LEFT JOIN payment_methods pm ON p.payment_method_id = pm.id
     WHERE p.user_id = ? 
       AND substr(p.due_date, 1, 4) = ? AND substr(p.due_date, 6, 2) = ?
     ORDER BY p.due_date ASC
@@ -136,9 +142,16 @@ router.get('/stats', (req, res) => {
     const upcomingParams = month && year ? [userId, year, month.padStart(2, '0')] : [userId];
     
     db.all(`
-      SELECT * FROM payments 
-      WHERE user_id = ? AND payment_date IS NULL AND due_date >= date('now') ${upcomingFilter}
-      ORDER BY due_date ASC 
+      SELECT p.*, 
+             c.name as currency_name, c.code as currency_code, c.symbol as currency_symbol,
+             pc.name as category_name, pc.color as category_color,
+             pm.name as payment_method_name
+      FROM payments p
+      LEFT JOIN currencies c ON p.currency_id = c.id
+      LEFT JOIN payment_categories pc ON p.category_id = pc.id
+      LEFT JOIN payment_methods pm ON p.payment_method_id = pm.id
+      WHERE p.user_id = ? AND p.payment_date IS NULL AND p.due_date >= date('now') ${upcomingFilter}
+      ORDER BY p.due_date ASC 
       LIMIT 10
     `, upcomingParams, (err, upcomingPayments) => {
       if (err) {
@@ -154,10 +167,17 @@ router.get('/stats', (req, res) => {
         [userId, new Date().toISOString().substr(0, 7)];
       
       db.all(`
-        SELECT * FROM payments 
-        WHERE user_id = ? AND payment_date IS NULL AND due_date < date('now')
+        SELECT p.*, 
+               c.name as currency_name, c.code as currency_code, c.symbol as currency_symbol,
+               pc.name as category_name, pc.color as category_color,
+               pm.name as payment_method_name
+        FROM payments p
+        LEFT JOIN currencies c ON p.currency_id = c.id
+        LEFT JOIN payment_categories pc ON p.category_id = pc.id
+        LEFT JOIN payment_methods pm ON p.payment_method_id = pm.id
+        WHERE p.user_id = ? AND p.payment_date IS NULL AND p.due_date < date('now')
           ${overdueFilter}
-        ORDER BY due_date ASC
+        ORDER BY p.due_date ASC
       `, overdueParams, (err, overduePayments) => {
         if (err) {
           console.error('Ошибка получения просроченных платежей:', err);
@@ -172,9 +192,16 @@ router.get('/stats', (req, res) => {
           [userId, new Date().toISOString().substr(0, 7)];
         
         db.all(`
-          SELECT * FROM payments 
-          WHERE user_id = ? AND payment_date IS NOT NULL ${completedFilter}
-          ORDER BY due_date DESC
+          SELECT p.*, 
+                 c.name as currency_name, c.code as currency_code, c.symbol as currency_symbol,
+                 pc.name as category_name, pc.color as category_color,
+                 pm.name as payment_method_name
+          FROM payments p
+          LEFT JOIN currencies c ON p.currency_id = c.id
+          LEFT JOIN payment_categories pc ON p.category_id = pc.id
+          LEFT JOIN payment_methods pm ON p.payment_method_id = pm.id
+          WHERE p.user_id = ? AND p.payment_date IS NOT NULL ${completedFilter}
+          ORDER BY p.due_date DESC
           LIMIT 10
         `, completedParams, (err, completedPayments) => {
           if (err) {
@@ -210,9 +237,16 @@ router.get('/day/:date', (req, res) => {
   const db = new sqlite3.Database(dbPath);
 
   db.all(`
-    SELECT * FROM payments
-    WHERE user_id = ? AND due_date = ?
-    ORDER BY amount DESC
+    SELECT p.*, 
+           c.name as currency_name, c.code as currency_code, c.symbol as currency_symbol,
+           pc.name as category_name, pc.color as category_color,
+           pm.name as payment_method_name
+    FROM payments p
+    LEFT JOIN currencies c ON p.currency_id = c.id
+    LEFT JOIN payment_categories pc ON p.category_id = pc.id
+    LEFT JOIN payment_methods pm ON p.payment_method_id = pm.id
+    WHERE p.user_id = ? AND p.due_date = ?
+    ORDER BY p.amount DESC
   `, [userId, date], (err, payments) => {
     if (err) {
       db.close();

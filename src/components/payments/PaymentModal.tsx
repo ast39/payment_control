@@ -7,8 +7,30 @@ interface Payment {
   title: string;
   description?: string;
   amount: number;
+  currency_id?: number;
+  category_id?: number;
+  payment_method_id?: number;
   payment_date?: string;
   due_date: string;
+  color?: string; // Добавляется динамически в роуте dashboard
+}
+
+interface Currency {
+  id: number;
+  name: string;
+  code: string;
+  symbol: string;
+}
+
+interface Category {
+  id: number;
+  name: string;
+  color: string;
+}
+
+interface PaymentMethod {
+  id: number;
+  name: string;
 }
 
 interface PaymentModalProps {
@@ -24,20 +46,65 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ payment, onClose, onSaved, 
     title: '',
     description: '',
     amount: '',
+    currency_id: '',
+    category_id: '',
+    payment_method_id: '',
     payment_date: '',
     due_date: ''
   });
+  const [currencies, setCurrencies] = useState<Currency[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const isEditing = !!payment && payment.id;
 
-    useEffect(() => {
+  // Загружаем справочники
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [currenciesRes, categoriesRes, paymentMethodsRes] = await Promise.all([
+          fetch('http://localhost:3001/api/currencies', {
+            headers: { Authorization: `Bearer ${token}` }
+          }),
+          fetch('http://localhost:3001/api/categories', {
+            headers: { Authorization: `Bearer ${token}` }
+          }),
+          fetch('http://localhost:3001/api/payment-methods', {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+        ]);
+
+        if (currenciesRes.ok) {
+          const currenciesData = await currenciesRes.json();
+          setCurrencies(currenciesData);
+        }
+        if (categoriesRes.ok) {
+          const categoriesData = await categoriesRes.json();
+          setCategories(categoriesData);
+        }
+        if (paymentMethodsRes.ok) {
+          const paymentMethodsData = await paymentMethodsRes.json();
+          setPaymentMethods(paymentMethodsData);
+        }
+      } catch (error) {
+        console.error('Ошибка загрузки справочников:', error);
+      }
+    };
+
+    fetchData();
+  }, [token]);
+
+  useEffect(() => {
     if (payment && payment.id) {
       setFormData({
         title: payment.title || '',
         description: payment.description || '',
         amount: payment.amount ? payment.amount.toString() : '',
+        currency_id: payment.currency_id ? payment.currency_id.toString() : '1',
+        category_id: payment.category_id ? payment.category_id.toString() : '1',
+        payment_method_id: payment.payment_method_id ? payment.payment_method_id.toString() : '1',
         payment_date: payment.payment_date || '',
         due_date: payment.due_date || ''
       });
@@ -47,6 +114,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ payment, onClose, onSaved, 
         title: '',
         description: '',
         amount: '',
+        currency_id: '1',
+        category_id: '1',
+        payment_method_id: '1',
         payment_date: '',
         due_date: initialDueDate || today
       });
@@ -87,6 +157,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ payment, onClose, onSaved, 
           title: formData.title,
           description: formData.description || null,
           amount: parseFloat(formData.amount),
+          currency_id: parseInt(formData.currency_id),
+          category_id: parseInt(formData.category_id),
+          payment_method_id: parseInt(formData.payment_method_id),
           payment_date: formData.payment_date || null,
           due_date: formData.due_date
         })
@@ -170,19 +243,69 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ payment, onClose, onSaved, 
 
           <div>
             <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-2">
-              Сумма (₽) *
+              Сумма *
             </label>
-            <input
-              id="amount"
-              type="number"
-              step="0.01"
-              min="0"
-              value={formData.amount}
-              onChange={(e) => handleInputChange('amount', e.target.value)}
+            <div className="flex space-x-3">
+              <input
+                id="amount"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.amount}
+                onChange={(e) => handleInputChange('amount', e.target.value)}
+                className="input flex-1"
+                placeholder="0.00"
+                required
+              />
+              <select
+                value={formData.currency_id}
+                onChange={(e) => handleInputChange('currency_id', e.target.value)}
+                className="input w-32"
+                required
+              >
+                {currencies.map(currency => (
+                  <option key={currency.id} value={currency.id}>
+                    {currency.symbol} {currency.code}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="category_id" className="block text-sm font-medium text-gray-700 mb-2">
+              Категория *
+            </label>
+            <select
+              value={formData.category_id}
+              onChange={(e) => handleInputChange('category_id', e.target.value)}
               className="input"
-              placeholder="0.00"
               required
-            />
+            >
+              {categories.map(category => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="payment_method_id" className="block text-sm font-medium text-gray-700 mb-2">
+              Способ оплаты *
+            </label>
+            <select
+              value={formData.payment_method_id}
+              onChange={(e) => handleInputChange('payment_method_id', e.target.value)}
+              className="input"
+              required
+            >
+              {paymentMethods.map(method => (
+                <option key={method.id} value={method.id}>
+                  {method.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
