@@ -256,12 +256,17 @@ const Dashboard: React.FC = () => {
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="card">
-            <div className="flex items-center">
-              <div className="p-2 bg-primary-100 rounded-lg">
-                <CreditCard className="w-6 h-6 text-primary-600" />
+            <div className="flex items-start justify-between">
+              <div className="flex flex-col items-center">
+                <div className="p-2 bg-primary-100 rounded-lg mb-2">
+                  <CreditCard className="w-6 h-6 text-primary-600" />
+                </div>
+                <div className="text-3xl font-bold text-primary-600">
+                  {stats.total_payments}
+                </div>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Всего платежей • {stats.total_payments}</p>
+              <div className="text-right">
+                <p className="text-sm font-medium text-gray-600 mb-2">Всего платежей</p>
                 <div className="space-y-1">
                   {stats.total_amount && stats.total_amount.length > 0 ? (
                     stats.total_amount.map((currency) => (
@@ -278,12 +283,17 @@ const Dashboard: React.FC = () => {
           </div>
 
           <div className="card">
-            <div className="flex items-center">
-              <div className="p-2 bg-warning-100 rounded-lg">
-                <Clock className="w-6 h-6 text-warning-600" />
+            <div className="flex items-start justify-between">
+              <div className="flex flex-col items-center">
+                <div className="p-2 bg-warning-100 rounded-lg mb-2">
+                  <Clock className="w-6 h-6 text-warning-600" />
+                </div>
+                <div className="text-3xl font-bold text-warning-600">
+                  {stats.pending_payments}
+                </div>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Ожидают оплаты • {stats.pending_payments}</p>
+              <div className="text-right">
+                <p className="text-sm font-medium text-gray-600 mb-2">Ожидают оплаты</p>
                 <div className="space-y-1">
                   {stats.pending_amount && stats.pending_amount.length > 0 ? (
                     stats.pending_amount.map((currency) => (
@@ -300,12 +310,17 @@ const Dashboard: React.FC = () => {
           </div>
 
           <div className="card">
-            <div className="flex items-center">
-              <div className="p-2 bg-success-100 rounded-lg">
-                <CheckCircle className="w-6 h-6 text-success-600" />
+            <div className="flex items-start justify-between">
+              <div className="flex flex-col items-center">
+                <div className="p-2 bg-success-100 rounded-lg mb-2">
+                  <CheckCircle className="w-6 h-6 text-success-600" />
+                </div>
+                <div className="text-3xl font-bold text-success-600">
+                  {stats.paid_payments}
+                </div>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Оплачено • {stats.paid_payments}</p>
+              <div className="text-right">
+                <p className="text-sm font-medium text-gray-600 mb-2">Оплачено</p>
                 <div className="space-y-1">
                   {stats.paid_amount && stats.paid_amount.length > 0 ? (
                     stats.paid_amount.map((currency) => (
@@ -322,12 +337,17 @@ const Dashboard: React.FC = () => {
           </div>
 
           <div className="card">
-            <div className="flex items-center">
-              <div className="p-2 bg-danger-100 rounded-lg">
-                <AlertTriangle className="w-6 h-6 text-danger-600" />
+            <div className="flex items-start justify-between">
+              <div className="flex flex-col items-center">
+                <div className="p-2 bg-danger-100 rounded-lg mb-2">
+                  <AlertTriangle className="w-6 h-6 text-danger-600" />
+                </div>
+                <div className="text-3xl font-bold text-danger-600">
+                  {stats.overdue_payments}
+                </div>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Просрочено • {stats.overdue_payments}</p>
+              <div className="text-right">
+                <p className="text-sm font-medium text-gray-600 mb-2">Просрочено</p>
                 <div className="space-y-1">
                   {stats.overdue_amount && stats.overdue_amount.length > 0 ? (
                     stats.overdue_amount.map((currency) => (
