@@ -114,19 +114,16 @@ router.get('/stats', (req, res) => {
   console.log('monthFilter:', monthFilter);
   console.log('monthParams:', monthParams);
   
+  // Получаем общую статистику по количеству
   db.get(`
     SELECT 
       COUNT(*) as total_payments,
       SUM(CASE WHEN payment_date IS NULL AND due_date >= date('now') THEN 1 ELSE 0 END) as pending_payments,
       SUM(CASE WHEN payment_date IS NOT NULL THEN 1 ELSE 0 END) as paid_payments,
-      SUM(CASE WHEN payment_date IS NULL AND due_date < date('now') THEN 1 ELSE 0 END) as overdue_payments,
-      SUM(amount) as total_amount,
-      SUM(CASE WHEN payment_date IS NOT NULL THEN amount ELSE 0 END) as paid_amount,
-      SUM(CASE WHEN payment_date IS NULL AND due_date >= date('now') THEN amount ELSE 0 END) as pending_amount,
-      SUM(CASE WHEN payment_date IS NULL AND due_date < date('now') THEN amount ELSE 0 END) as overdue_amount
+      SUM(CASE WHEN payment_date IS NULL AND due_date < date('now') THEN 1 ELSE 0 END) as overdue_payments
     FROM payments 
     WHERE user_id = ? ${monthFilter}
-  `, monthParams, (err, stats) => {
+  `, monthParams, (err, countStats) => {
     if (err) {
       db.close();
       return res.status(500).json({ 
@@ -135,36 +132,36 @@ router.get('/stats', (req, res) => {
       });
     }
 
-    // Получаем ближайшие платежи (сегодня + 1 месяц)
-    const upcomingFilter = month && year ? 
-      `AND substr(due_date, 1, 4) = ? AND substr(due_date, 6, 2) = ?` : 
-      `AND due_date >= date('now') AND due_date <= date('now', '+1 month')`;
-    const upcomingParams = month && year ? [userId, year, month.padStart(2, '0')] : [userId];
-    
+    // Получаем суммы по валютам
     db.all(`
-      SELECT p.*, 
-             c.name as currency_name, c.code as currency_code, c.symbol as currency_symbol,
-             pc.name as category_name, pc.color as category_color,
-             pm.name as payment_method_name
+      SELECT 
+        c.id as currency_id,
+        c.name as currency_name,
+        c.code as currency_code,
+        c.symbol as currency_symbol,
+        SUM(amount) as total_amount,
+        SUM(CASE WHEN payment_date IS NOT NULL THEN amount ELSE 0 END) as paid_amount,
+        SUM(CASE WHEN payment_date IS NULL AND due_date >= date('now') THEN amount ELSE 0 END) as pending_amount,
+        SUM(CASE WHEN payment_date IS NULL AND due_date < date('now') THEN amount ELSE 0 END) as overdue_amount
       FROM payments p
       LEFT JOIN currencies c ON p.currency_id = c.id
-      LEFT JOIN payment_categories pc ON p.category_id = pc.id
-      LEFT JOIN payment_methods pm ON p.payment_method_id = pm.id
-      WHERE p.user_id = ? AND p.payment_date IS NULL AND p.due_date >= date('now') ${upcomingFilter}
-      ORDER BY p.due_date ASC 
-      LIMIT 10
-    `, upcomingParams, (err, upcomingPayments) => {
+      WHERE p.user_id = ? ${monthFilter}
+      GROUP BY c.id, c.name, c.code, c.symbol
+      ORDER BY c.id
+    `, monthParams, (err, amountStats) => {
       if (err) {
-        console.error('Ошибка получения ближайших платежей:', err);
+        db.close();
+        return res.status(500).json({ 
+          error: 'Ошибка базы данных',
+          message: 'Не удалось получить суммы по валютам' 
+        });
       }
 
-      // Получаем просроченные платежи (выбранный месяц)
-      const overdueFilter = month && year ? 
+      // Получаем ближайшие платежи (сегодня + 1 месяц)
+      const upcomingFilter = month && year ? 
         `AND substr(due_date, 1, 4) = ? AND substr(due_date, 6, 2) = ?` : 
-        `AND substr(due_date, 1, 7) = ?`;
-      const overdueParams = month && year ? 
-        [userId, year, month.padStart(2, '0')] : 
-        [userId, new Date().toISOString().substr(0, 7)];
+        `AND due_date >= date('now') AND due_date <= date('now', '+1 month')`;
+      const upcomingParams = month && year ? [userId, year, month.padStart(2, '0')] : [userId];
       
       db.all(`
         SELECT p.*, 
@@ -175,19 +172,19 @@ router.get('/stats', (req, res) => {
         LEFT JOIN currencies c ON p.currency_id = c.id
         LEFT JOIN payment_categories pc ON p.category_id = pc.id
         LEFT JOIN payment_methods pm ON p.payment_method_id = pm.id
-        WHERE p.user_id = ? AND p.payment_date IS NULL AND p.due_date < date('now')
-          ${overdueFilter}
-        ORDER BY p.due_date ASC
-      `, overdueParams, (err, overduePayments) => {
+        WHERE p.user_id = ? AND p.payment_date IS NULL AND p.due_date >= date('now') ${upcomingFilter}
+        ORDER BY p.due_date ASC 
+        LIMIT 10
+      `, upcomingParams, (err, upcomingPayments) => {
         if (err) {
-          console.error('Ошибка получения просроченных платежей:', err);
+          console.error('Ошибка получения ближайших платежей:', err);
         }
 
-        // Получаем исполненные платежи (выбранный месяц)
-        const completedFilter = month && year ? 
+        // Получаем просроченные платежи (выбранный месяц)
+        const overdueFilter = month && year ? 
           `AND substr(due_date, 1, 4) = ? AND substr(due_date, 6, 2) = ?` : 
           `AND substr(due_date, 1, 7) = ?`;
-        const completedParams = month && year ? 
+        const overdueParams = month && year ? 
           [userId, year, month.padStart(2, '0')] : 
           [userId, new Date().toISOString().substr(0, 7)];
         
@@ -200,30 +197,73 @@ router.get('/stats', (req, res) => {
           LEFT JOIN currencies c ON p.currency_id = c.id
           LEFT JOIN payment_categories pc ON p.category_id = pc.id
           LEFT JOIN payment_methods pm ON p.payment_method_id = pm.id
-          WHERE p.user_id = ? AND p.payment_date IS NOT NULL ${completedFilter}
-          ORDER BY p.due_date DESC
-          LIMIT 10
-        `, completedParams, (err, completedPayments) => {
+          WHERE p.user_id = ? AND p.payment_date IS NULL AND p.due_date < date('now')
+            ${overdueFilter}
+          ORDER BY p.due_date ASC
+        `, overdueParams, (err, overduePayments) => {
           if (err) {
-            console.error('Ошибка получения исполненных платежей:', err);
+            console.error('Ошибка получения просроченных платежей:', err);
           }
 
-          db.close();
-                  res.json({
-          stats: {
-            total_payments: stats.total_payments || 0,
-            pending_payments: stats.pending_payments || 0,
-            paid_payments: stats.paid_payments || 0,
-            overdue_payments: stats.overdue_payments || 0,
-            total_amount: stats.total_amount || 0,
-            paid_amount: stats.paid_amount || 0,
-            pending_amount: stats.pending_amount || 0,
-            overdue_amount: stats.overdue_amount || 0
-          },
-          upcoming_payments: upcomingPayments || [],
-          overdue_payments: overduePayments || [],
-          completed_payments: completedPayments || []
-        });
+          // Получаем исполненные платежи (выбранный месяц)
+          const completedFilter = month && year ? 
+            `AND substr(due_date, 1, 4) = ? AND substr(due_date, 6, 2) = ?` : 
+            `AND substr(due_date, 1, 7) = ?`;
+          const completedParams = month && year ? 
+            [userId, year, month.padStart(2, '0')] : 
+            [userId, new Date().toISOString().substr(0, 7)];
+          
+          db.all(`
+            SELECT p.*, 
+                   c.name as currency_name, c.code as currency_code, c.symbol as currency_symbol,
+                   pc.name as category_name, pc.color as category_color,
+                   pm.name as payment_method_name
+            FROM payments p
+            LEFT JOIN currencies c ON p.currency_id = c.id
+            LEFT JOIN payment_categories pc ON p.category_id = pc.id
+            LEFT JOIN payment_methods pm ON p.payment_method_id = pm.id
+            WHERE p.user_id = ? AND p.payment_date IS NOT NULL ${completedFilter}
+            ORDER BY p.due_date DESC
+            LIMIT 10
+          `, completedParams, (err, completedPayments) => {
+            if (err) {
+              console.error('Ошибка получения исполненных платежей:', err);
+            }
+
+            db.close();
+            // Формируем статистику по валютам
+            const currencyStats = {};
+            if (amountStats) {
+              amountStats.forEach(currency => {
+                currencyStats[currency.currency_id] = {
+                  currency_id: currency.currency_id,
+                  currency_name: currency.currency_name,
+                  currency_code: currency.currency_code,
+                  currency_symbol: currency.currency_symbol,
+                  total_amount: currency.total_amount || 0,
+                  paid_amount: currency.paid_amount || 0,
+                  pending_amount: currency.pending_amount || 0,
+                  overdue_amount: currency.overdue_amount || 0
+                };
+              });
+            }
+
+            res.json({
+              stats: {
+                total_payments: countStats.total_payments || 0,
+                pending_payments: countStats.pending_payments || 0,
+                paid_payments: countStats.paid_payments || 0,
+                overdue_payments: countStats.overdue_payments || 0,
+                total_amount: Object.values(currencyStats),
+                paid_amount: Object.values(currencyStats),
+                pending_amount: Object.values(currencyStats),
+                overdue_amount: Object.values(currencyStats)
+              },
+              upcoming_payments: upcomingPayments || [],
+              overdue_payments: overduePayments || [],
+              completed_payments: completedPayments || []
+            });
+          });
         });
       });
     });

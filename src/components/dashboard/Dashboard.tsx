@@ -31,15 +31,26 @@ interface Payment {
   color?: string; // Добавляется динамически в роуте dashboard
 }
 
+interface CurrencyAmount {
+  currency_id: number;
+  currency_name: string;
+  currency_code: string;
+  currency_symbol: string;
+  total_amount: number;
+  paid_amount: number;
+  pending_amount: number;
+  overdue_amount: number;
+}
+
 interface DashboardStats {
   total_payments: number;
   pending_payments: number;
   paid_payments: number;
   overdue_payments: number;
-  total_amount: number;
-  paid_amount: number;
-  pending_amount: number;
-  overdue_amount: number;
+  total_amount: CurrencyAmount[];
+  paid_amount: CurrencyAmount[];
+  pending_amount: CurrencyAmount[];
+  overdue_amount: CurrencyAmount[];
 }
 
 const Dashboard: React.FC = () => {
@@ -251,7 +262,17 @@ const Dashboard: React.FC = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Всего платежей • {stats.total_payments}</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.total_amount} ₽</p>
+                <div className="space-y-1">
+                  {stats.total_amount && stats.total_amount.length > 0 ? (
+                    stats.total_amount.map((currency) => (
+                      <p key={currency.currency_id} className="text-base font-semibold text-gray-900">
+                        {currency.total_amount.toLocaleString()} {currency.currency_symbol}
+                      </p>
+                    ))
+                  ) : (
+                    <p className="text-base font-semibold text-gray-900">0 ₽</p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -263,7 +284,17 @@ const Dashboard: React.FC = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Ожидают оплаты • {stats.pending_payments}</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.pending_amount || 0} ₽</p>
+                <div className="space-y-1">
+                  {stats.pending_amount && stats.pending_amount.length > 0 ? (
+                    stats.pending_amount.map((currency) => (
+                      <p key={currency.currency_id} className="text-base font-semibold text-gray-900">
+                        {currency.pending_amount.toLocaleString()} {currency.currency_symbol}
+                      </p>
+                    ))
+                  ) : (
+                    <p className="text-base font-semibold text-gray-900">0 ₽</p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -275,7 +306,17 @@ const Dashboard: React.FC = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Оплачено • {stats.paid_payments}</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.paid_amount} ₽</p>
+                <div className="space-y-1">
+                  {stats.paid_amount && stats.paid_amount.length > 0 ? (
+                    stats.paid_amount.map((currency) => (
+                      <p key={currency.currency_id} className="text-base font-semibold text-gray-900">
+                        {currency.paid_amount.toLocaleString()} {currency.currency_symbol}
+                      </p>
+                    ))
+                  ) : (
+                    <p className="text-base font-semibold text-gray-900">0 ₽</p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -287,7 +328,17 @@ const Dashboard: React.FC = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Просрочено • {stats.overdue_payments}</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.overdue_amount || 0} ₽</p>
+                <div className="space-y-1">
+                  {stats.overdue_amount && stats.overdue_amount.length > 0 ? (
+                    stats.overdue_amount.map((currency) => (
+                      <p key={currency.currency_id} className="text-base font-semibold text-gray-900">
+                        {currency.overdue_amount.toLocaleString()} {currency.currency_symbol}
+                      </p>
+                    ))
+                  ) : (
+                    <p className="text-base font-semibold text-gray-900">0 ₽</p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
