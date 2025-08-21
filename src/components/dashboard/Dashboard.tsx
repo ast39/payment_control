@@ -319,12 +319,14 @@ const Dashboard: React.FC = () => {
           
           {/* Отладка календаря */}
           {(() => {
-            const totalDays = getDaysInMonth().length;
+            const calendarDays = getDaysInMonth();
+            const actualMonthDays = calendarDays.filter(day => day !== null).length;
             const totalPaymentsInCalendar = Object.values(calendarData).reduce((sum, dayPayments) => sum + dayPayments.length, 0);
             const daysWithPayments = Object.keys(calendarData).length;
             
             console.log('=== КАЛЕНДАРЬ ОТЛАДКА ===');
-            console.log('Всего дней в месяце:', totalDays);
+            console.log('Всего ячеек в календаре:', calendarDays.length);
+            console.log('Фактических дней в месяце:', actualMonthDays);
             console.log('Дней с платежами:', daysWithPayments);
             console.log('Всего платежей в календаре:', totalPaymentsInCalendar);
             console.log('calendarData:', calendarData);
@@ -334,7 +336,7 @@ const Dashboard: React.FC = () => {
               <div className="mb-4 p-3 bg-gray-50 rounded-lg text-sm">
                 <div className="grid grid-cols-3 gap-4 text-center">
                   <div>
-                    <div className="font-semibold text-gray-700">{totalDays}</div>
+                    <div className="font-semibold text-gray-700">{actualMonthDays}</div>
                     <div className="text-gray-500">дней в месяце</div>
                   </div>
                   <div>
