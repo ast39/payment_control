@@ -85,7 +85,6 @@ const Dashboard: React.FC = () => {
       
       if (calendarResponse.ok) {
         const rawCalendarData = await calendarResponse.json();
-        console.log('Получены данные календаря:', rawCalendarData);
         
         // Преобразуем данные в объект по дням
         let processedCalendarData: { [key: string]: any[] } = {};
@@ -107,15 +106,6 @@ const Dashboard: React.FC = () => {
           console.error('Неожиданный формат данных календаря:', rawCalendarData);
         }
         
-        // Подсчитываем общее количество платежей в календаре
-        let totalPaymentsInCalendar = 0;
-        Object.values(processedCalendarData).forEach(dayPayments => {
-          totalPaymentsInCalendar += dayPayments.length;
-        });
-        
-        console.log('Обработанные данные календаря:', processedCalendarData);
-        console.log('Общее количество платежей в календаре:', totalPaymentsInCalendar);
-        console.log('Устанавливаем calendarData:', processedCalendarData);
         setCalendarData(processedCalendarData);
       } else {
         console.error('Ошибка получения календаря:', calendarResponse.status);
@@ -388,40 +378,7 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
           
-          {/* Отладка календаря */}
-          {(() => {
-            const calendarDays = getDaysInMonth();
-            const actualMonthDays = calendarDays.filter(day => day !== null).length;
-            const totalPaymentsInCalendar = Object.values(calendarData).reduce((sum, dayPayments) => sum + dayPayments.length, 0);
-            const daysWithPayments = Object.keys(calendarData).length;
-            
-            console.log('=== КАЛЕНДАРЬ ОТЛАДКА ===');
-            console.log('Всего ячеек в календаре:', calendarDays.length);
-            console.log('Фактических дней в месяце:', actualMonthDays);
-            console.log('Дней с платежами:', daysWithPayments);
-            console.log('Всего платежей в календаре:', totalPaymentsInCalendar);
-            console.log('calendarData:', calendarData);
-            console.log('========================');
-            
-            return (
-              <div className="mb-4 p-3 bg-gray-50 rounded-lg text-sm">
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div>
-                    <div className="font-semibold text-gray-700">{actualMonthDays}</div>
-                    <div className="text-gray-500">дней в месяце</div>
-                  </div>
-                  <div>
-                    <div className="font-semibold text-gray-700">{daysWithPayments}</div>
-                    <div className="text-gray-500">дней с платежами</div>
-                  </div>
-                  <div>
-                    <div className="font-semibold text-gray-700">{totalPaymentsInCalendar}</div>
-                    <div className="text-gray-500">платежей в календаре</div>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
+
 
         <div className="grid grid-cols-7 gap-1">
           {/* Дни недели */}
@@ -450,19 +407,7 @@ const Dashboard: React.FC = () => {
             const isCurrentMonth = isSameMonth(day, currentDate);
             const isCurrentDay = isToday(day);
             
-            // Отладка рендеринга дней
-            if (dayKey === '5' || dayKey === '7' || dayKey === '11') {
-              console.log(`=== РЕНДЕРИНГ ДЕНЬ ${dayKey} ===`);
-              console.log('day:', day);
-              console.log('dayKey:', dayKey);
-              console.log('dayPayments:', dayPayments);
-              console.log('calendarData[dayKey]:', calendarData[dayKey]);
-              console.log('isCurrentMonth:', isCurrentMonth);
-              console.log('isCurrentDay:', isCurrentDay);
-              console.log('day.toISOString():', day.toISOString());
-              console.log('format(day, "d"):', format(day, 'd'));
-              console.log('========================');
-            }
+
 
             return (
               <div

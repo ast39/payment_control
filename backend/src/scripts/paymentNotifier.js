@@ -56,19 +56,26 @@ function getPaymentsForNotification(userId, reminderDays) {
   return new Promise((resolve, reject) => {
     const db = new sqlite3.Database(dbPath);
     
-    // Получаем платежи, которые нужно оплатить через reminderDays дней
-    const targetDate = new Date();
-    targetDate.setDate(targetDate.getDate() + reminderDays);
-    const targetDateStr = targetDate.toISOString().split('T')[0];
+    // Получаем все активные платежи (неоплаченные) в диапазоне от сегодня до reminderDays дней вперед
+    // и все просроченные платежи
+    const today = new Date();
+    const maxDate = new Date();
+    maxDate.setDate(today.getDate() + reminderDays);
     
     db.all(`
-      SELECT id, title, amount, due_date, status
-      FROM payments 
-      WHERE user_id = ? 
-      AND status = 'pending'
-      AND due_date = ?
-      ORDER BY due_date ASC
-    `, [userId, targetDateStr], (err, payments) => {
+      SELECT p.id, p.title, p.amount, p.due_date, p.payment_date,
+             c.name as currency_name, c.symbol as currency_symbol,
+             pc.name as category_name, pc.color as category_color,
+             pm.name as payment_method_name
+      FROM payments p
+      LEFT JOIN currencies c ON p.currency_id = c.id
+      LEFT JOIN payment_categories pc ON p.category_id = pc.id
+      LEFT JOIN payment_methods pm ON p.payment_method_id = pm.id
+      WHERE p.user_id = ? 
+      AND p.payment_date IS NULL
+      AND p.due_date <= date(?, '+${reminderDays} days')
+      ORDER BY p.due_date ASC
+    `, [userId, today.toISOString().split('T')[0]], (err, payments) => {
       db.close();
       if (err) {
         reject(err);
@@ -79,59 +86,93 @@ function getPaymentsForNotification(userId, reminderDays) {
   });
 }
 
-// Функция для получения просроченных платежей
-function getOverduePayments(userId) {
-  return new Promise((resolve, reject) => {
-    const db = new sqlite3.Database(dbPath);
-    
-    db.all(`
-      SELECT id, title, amount, due_date, status
-      FROM payments 
-      WHERE user_id = ? 
-      AND status = 'overdue'
-      ORDER BY due_date ASC
-    `, [userId], (err, payments) => {
-      db.close();
-      if (err) {
-        reject(err);
-      } else {
-        resolve(payments);
-      }
-    });
-  });
-}
+
 
 // Функция для форматирования сообщения
-function formatNotificationMessage(username, upcomingPayments, overduePayments, reminderDays) {
+function formatNotificationMessage(username, activePayments, reminderDays) {
   let message = `🔔 Уведомление о платежах\n\n👤 Пользователь: ${username}\n\n`;
   
-  // Предстоящие платежи
-  if (upcomingPayments.length > 0) {
-    message += `⏰ Через ${reminderDays} ${reminderDays === 1 ? 'день' : reminderDays < 5 ? 'дня' : 'дней'} предстоит оплата:\n`;
-    upcomingPayments.forEach(payment => {
+  // Активные платежи
+  if (activePayments.length > 0) {
+    message += `⏰ Активные платежи:\n`;
+    activePayments.forEach(payment => {
       const dueDate = new Date(payment.due_date);
+      const today = new Date();
+      
+      // Сбрасываем время до 00:00:00 для корректного сравнения дат
+      const dueDateOnly = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+      const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      
+      const daysUntilDue = Math.ceil((dueDateOnly - todayOnly) / (1000 * 60 * 60 * 24));
       const formattedDate = dueDate.toLocaleDateString('ru-RU');
-      message += `📋 ${payment.title} - ${payment.amount} ₽ (${formattedDate})\n`;
+      const currencySymbol = payment.currency_symbol || '₽';
+      const categoryName = payment.category_name || 'Другое';
+      const paymentMethod = payment.payment_method_name || 'Не указан';
+      
+      message += `📋 ${payment.title}\n`;
+      message += `   💰 ${payment.amount} ${currencySymbol}\n`;
+      message += `   🏷️ ${categoryName}\n`;
+      message += `   💳 ${paymentMethod}\n`;
+      message += `   📅 ${formattedDate}\n`;
+      
+      // Показываем количество дней до оплаты или статус
+      if (daysUntilDue > 0) {
+        message += `   ⏰ До оплаты: ${daysUntilDue} ${daysUntilDue === 1 ? 'день' : daysUntilDue < 5 ? 'дня' : 'дней'}\n`;
+      } else if (daysUntilDue === 0) {
+        message += `   ⚠️ Оплата сегодня!\n`;
+      } else {
+        message += `   🚨 Просрочен на ${Math.abs(daysUntilDue)} ${Math.abs(daysUntilDue) === 1 ? 'день' : Math.abs(daysUntilDue) < 5 ? 'дня' : 'дней'}\n`;
+      }
+      message += '\n';
     });
-    message += '\n';
   }
   
-  // Просроченные платежи
-  if (overduePayments.length > 0) {
-    message += `🚨 Просроченные платежи:\n`;
-    overduePayments.forEach(payment => {
-      const dueDate = new Date(payment.due_date);
-      const formattedDate = dueDate.toLocaleDateString('ru-RU');
-      const daysOverdue = Math.floor((new Date() - dueDate) / (1000 * 60 * 60 * 24));
-      message += `📋 ${payment.title} - ${payment.amount} ₽ (${formattedDate}, просрочен на ${daysOverdue} ${daysOverdue === 1 ? 'день' : daysOverdue < 5 ? 'дня' : 'дней'})\n`;
-    });
-  }
-  
-  if (upcomingPayments.length === 0 && overduePayments.length === 0) {
-    message += `✅ У вас нет платежей, требующих внимания в ближайшие ${reminderDays} дней.`;
+  if (activePayments.length === 0) {
+    message += `✅ У вас нет активных платежей, требующих внимания.`;
   }
   
   return message;
+}
+
+// Функция для проверки и отправки уведомлений конкретному пользователю
+async function checkAndSendNotificationsForUser(userId, botToken, chatId, reminderDays) {
+  try {
+    console.log(`🔍 Проверка платежей для пользователя ${userId}: ${new Date().toLocaleString('ru-RU')}`);
+    
+    // Получаем все активные платежи пользователя
+    const activePayments = await getPaymentsForNotification(userId, reminderDays);
+    
+    if (activePayments.length > 0) {
+      // Получаем имя пользователя для сообщения
+      const db = new sqlite3.Database(dbPath);
+      const username = await new Promise((resolve, reject) => {
+        db.get('SELECT username FROM users WHERE id = ?', [userId], (err, user) => {
+          db.close();
+          if (err) reject(err);
+          else resolve(user?.username || 'Пользователь');
+        });
+      });
+      
+      const message = formatNotificationMessage(username, activePayments, reminderDays);
+      
+      // Отправляем уведомление
+      const success = await sendTelegramNotification(botToken, chatId, message);
+      
+      if (success) {
+        console.log(`✅ Уведомление отправлено пользователю ${username}`);
+        return { success: true, payments_count: activePayments.length, message: 'Уведомление отправлено успешно' };
+      } else {
+        console.log(`❌ Ошибка отправки уведомления пользователю ${username}`);
+        return { success: false, error: 'Ошибка отправки в Telegram' };
+      }
+    } else {
+      console.log(`ℹ️ Пользователь ${userId}: нет платежей для уведомления`);
+      return { success: true, payments_count: 0, message: 'Нет платежей для уведомления' };
+    }
+  } catch (error) {
+    console.error(`❌ Ошибка проверки уведомлений для пользователя ${userId}:`, error.message);
+    return { success: false, error: error.message };
+  }
 }
 
 // Основная функция проверки и отправки уведомлений
@@ -145,18 +186,14 @@ async function checkAndSendNotifications() {
     
     for (const user of users) {
       try {
-        // Получаем предстоящие платежи
-        const upcomingPayments = await getPaymentsForNotification(user.id, user.reminder_days || 3);
-        
-        // Получаем просроченные платежи
-        const overduePayments = await getOverduePayments(user.id);
+        // Получаем все активные платежи (включая просроченные)
+        const activePayments = await getPaymentsForNotification(user.id, user.reminder_days || 3);
         
         // Если есть что уведомлять
-        if (upcomingPayments.length > 0 || overduePayments.length > 0) {
+        if (activePayments.length > 0) {
           const message = formatNotificationMessage(
             user.username, 
-            upcomingPayments, 
-            overduePayments, 
+            activePayments, 
             user.reminder_days || 3
           );
           
@@ -211,5 +248,6 @@ if (require.main === module) {
 
 module.exports = {
   startNotificationDaemon,
-  checkAndSendNotifications
+  checkAndSendNotifications,
+  checkAndSendNotificationsForUser
 };

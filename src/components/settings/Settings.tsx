@@ -5,7 +5,8 @@ import {
   Bell, 
   MessageCircle, 
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Play
 } from 'lucide-react';
 
 interface UserSettings {
@@ -25,6 +26,7 @@ const Settings: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [testLoading, setTestLoading] = useState(false);
+  const [runLoading, setRunLoading] = useState(false);
 
   const fetchSettings = useCallback(async () => {
     if (!token) return;
@@ -107,6 +109,38 @@ const Settings: React.FC = () => {
       setMessage({ type: 'error', text: 'Не удалось отправить тестовое уведомление' });
     } finally {
       setTestLoading(false);
+    }
+  };
+
+  const handleRunNotifications = async () => {
+    if (!token || !settings.telegram_chat_id) {
+      setMessage({ type: 'error', text: 'Сначала укажите Chat ID Telegram' });
+      return;
+    }
+
+    try {
+      setRunLoading(true);
+      const response = await fetch('http://localhost:3001/api/settings/run-notifications', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setMessage({ 
+          type: 'success', 
+          text: `Проверка выполнена! ${data.result.message}` 
+        });
+        setTimeout(() => setMessage(null), 5000);
+      } else {
+        const errorData = await response.json();
+        setMessage({ type: 'error', text: errorData.message || 'Ошибка выполнения' });
+      }
+    } catch (error) {
+      console.error('Ошибка запуска уведомлений:', error);
+      setMessage({ type: 'error', text: 'Не удалось запустить проверку уведомлений' });
+    } finally {
+      setRunLoading(false);
     }
   };
 
@@ -209,6 +243,20 @@ const Settings: React.FC = () => {
                   </>
                 )}
               </button>
+              <button
+                onClick={handleRunNotifications}
+                disabled={runLoading || !settings.telegram_bot_token || !settings.telegram_chat_id}
+                className="btn-primary whitespace-nowrap inline-flex items-center"
+              >
+                {runLoading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Play className="w-4 h-4 mr-2" />
+                    <span>Запуск</span>
+                  </>
+                )}
+              </button>
             </div>
             <p className="mt-2 text-sm text-gray-500">
               Чтобы получить Chat ID, отправьте сообщение боту @userinfobot в Telegram
@@ -273,7 +321,8 @@ const Settings: React.FC = () => {
               <p>5. Бот ответит вам Chat ID (например: 123456789)</p>
               <p>6. Введите токен и Chat ID в поля выше</p>
               <p>7. Нажмите "Тест" для проверки подключения</p>
-              <p>8. Сохраните настройки</p>
+              <p>8. Нажмите "Запуск" для ручной проверки платежей и отправки уведомлений</p>
+              <p>9. Сохраните настройки</p>
             </div>
           </div>
         </div>

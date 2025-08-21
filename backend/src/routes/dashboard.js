@@ -15,14 +15,6 @@ router.get('/calendar/:year/:month', (req, res) => {
   const userId = req.user.id;
   const db = new sqlite3.Database(dbPath);
 
-  console.log('=== CALENDAR ROUTE ===');
-  console.log('Params:', { year, month });
-  console.log('userId:', userId);
-
-
-  
-
-
   // Получаем все платежи для указанного месяца
   const query = `
     SELECT p.*, 
@@ -38,23 +30,14 @@ router.get('/calendar/:year/:month', (req, res) => {
     ORDER BY p.due_date ASC
   `;
   
-
-  
-  console.log('Calendar query params:', [userId, year, month.padStart(2, '0')]);
   db.all(query, [userId, year, month.padStart(2, '0')], (err, payments) => {
     if (err) {
-      console.error('Calendar DB error:', err);
       db.close();
       return res.status(500).json({ 
         error: 'Ошибка базы данных',
         message: 'Не удалось получить данные календаря' 
       });
     }
-    
-    console.log('Calendar payments found:', payments.length);
-    console.log('First few payments:', payments.slice(0, 3));
-    
-
 
     // Группируем платежи по дням
     const calendarData = {};
@@ -101,18 +84,11 @@ router.get('/stats', (req, res) => {
   const { month, year } = req.query; // Получаем месяц и год из query параметров
   const db = new sqlite3.Database(dbPath);
 
-  console.log('=== STATS ROUTE ===');
-  console.log('Query params:', { month, year });
-  console.log('userId:', userId);
-
   // Статусы теперь определяются автоматически по датам
 
   // Получаем статистику за выбранный месяц
   const monthFilter = month && year ? `AND substr(due_date, 1, 4) = ? AND substr(due_date, 6, 2) = ?` : '';
   const monthParams = month && year ? [userId, year, month.padStart(2, '0')] : [userId];
-  
-  console.log('monthFilter:', monthFilter);
-  console.log('monthParams:', monthParams);
   
   // Получаем общую статистику по количеству
   db.get(`

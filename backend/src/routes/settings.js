@@ -141,8 +141,8 @@ router.post('/test-telegram', (req, res) => {
       });
     }
 
-    // Отправляем тестовое уведомление в Telegram
-    const testMessage = `🔔 Тестовое уведомление от системы платежей!\n\n📋 Платеж: Интернет\n💰 Сумма: 1500 ₽\n📅 Дата оплаты: 25.12.2024\n⏰ До оплаты осталось: 3 дня\n\n✅ Настройки Telegram работают корректно!`;
+    // Простое тестовое сообщение
+    const testMessage = `🔔 Тестовое уведомление от системы платежей!\n\n✅ Сервис настроен и работает корректно!\n\n📱 Telegram уведомления подключены успешно.`;
     
     fetch(`https://api.telegram.org/bot${settings.telegram_bot_token}/sendMessage`, {
       method: 'POST',
@@ -180,6 +180,51 @@ router.post('/test-telegram', (req, res) => {
         error_details: error.message
       });
     });
+  });
+});
+
+// Ручной запуск проверки платежей и отправки уведомлений
+router.post('/run-notifications', (req, res) => {
+  const userId = req.user.id;
+  const db = new sqlite3.Database(dbPath);
+
+  db.get('SELECT telegram_bot_token, telegram_chat_id, reminder_days FROM user_settings WHERE user_id = ?', [userId], (err, settings) => {
+    if (err) {
+      db.close();
+      return res.status(500).json({ 
+        error: 'Ошибка базы данных',
+        message: 'Не удалось получить настройки' 
+      });
+    }
+
+    if (!settings || !settings.telegram_bot_token || !settings.telegram_chat_id) {
+      db.close();
+      return res.status(400).json({ 
+        error: 'Настройки не найдены',
+        message: 'Сначала укажите токен бота и Chat ID Telegram' 
+      });
+    }
+
+    // Импортируем функцию проверки уведомлений
+    const { checkAndSendNotificationsForUser } = require('../scripts/paymentNotifier');
+    
+    // Запускаем проверку для конкретного пользователя
+    checkAndSendNotificationsForUser(userId, settings.telegram_bot_token, settings.telegram_chat_id, settings.reminder_days || 3)
+      .then(result => {
+        db.close();
+        res.json({ 
+          message: 'Проверка платежей выполнена успешно',
+          result: result
+        });
+      })
+      .catch(error => {
+        db.close();
+        res.status(500).json({ 
+          error: 'Ошибка выполнения',
+          message: 'Не удалось выполнить проверку платежей',
+          error_details: error.message
+        });
+      });
   });
 });
 
