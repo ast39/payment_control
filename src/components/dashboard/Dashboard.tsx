@@ -66,6 +66,7 @@ const Dashboard: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [showPaymentDetails, setShowPaymentDetails] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
 
   const fetchDashboardData = useCallback(async () => {
     if (!token) return;
@@ -197,6 +198,7 @@ const Dashboard: React.FC = () => {
   const handlePaymentModalClose = () => {
     setShowPaymentModal(false);
     setSelectedDate('');
+    setEditingPayment(null);
   };
 
   const handlePaymentSaved = () => {
@@ -219,6 +221,51 @@ const Dashboard: React.FC = () => {
     setShowPaymentDetails(false);
     setSelectedPayment(null);
     fetchDashboardData(); // Перезагружаем данные
+  };
+
+  const handlePaymentEdit = (payment: Payment) => {
+    setShowPaymentDetails(false);
+    setSelectedPayment(null);
+    // Открываем модальное окно редактирования
+    setEditingPayment(payment);
+    setShowPaymentModal(true);
+  };
+
+  const handlePaymentDelete = async (paymentId: number) => {
+    if (!token) return;
+    
+    if (!window.confirm('Вы уверены, что хотите удалить этот платеж?')) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`http://localhost:3001/api/payments/${paymentId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        // Сначала закрываем модальное окно
+        setShowPaymentDetails(false);
+        setSelectedPayment(null);
+        
+        // Затем обновляем данные и очищаем календарь
+        await fetchDashboardData();
+        
+        // Дополнительно очищаем календарь на случай если платеж там остался
+        setCalendarData(prev => {
+          const newCalendarData = { ...prev };
+          Object.keys(newCalendarData).forEach(day => {
+            newCalendarData[day] = newCalendarData[day].filter(p => p.id !== paymentId);
+          });
+          return newCalendarData;
+        });
+      } else {
+        console.error('Ошибка удаления платежа');
+      }
+    } catch (error) {
+      console.error('Ошибка удаления платежа:', error);
+    }
   };
 
   if (loading) {
@@ -528,10 +575,10 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Модальное окно создания платежа */}
+      {/* Модальное окно создания/редактирования платежа */}
       {showPaymentModal && (
         <PaymentModal
-          payment={null}
+          payment={editingPayment}
           onClose={handlePaymentModalClose}
           onSaved={handlePaymentSaved}
           initialDueDate={selectedDate}
@@ -544,6 +591,8 @@ const Dashboard: React.FC = () => {
           payment={selectedPayment}
           onClose={handlePaymentDetailsClose}
           onUpdated={handlePaymentUpdated}
+          onEdit={handlePaymentEdit}
+          onDelete={handlePaymentDelete}
         />
       )}
     </div>

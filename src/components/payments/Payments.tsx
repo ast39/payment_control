@@ -129,6 +129,12 @@ const Payments: React.FC = () => {
 
   const handleEditPayment = (payment: Payment) => {
     if (payment && payment.id) {
+      // Если открыт PaymentDetails, сначала закрываем его
+      if (showDetails) {
+        setShowDetails(false);
+        setSelectedPayment(null);
+      }
+      
       setEditingPayment(payment);
       setShowModal(true);
     }
@@ -144,6 +150,12 @@ const Payments: React.FC = () => {
       });
       
       if (response.ok) {
+        // Если открыт PaymentDetails, закрываем его
+        if (showDetails) {
+          setShowDetails(false);
+          setSelectedPayment(null);
+        }
+        
         await fetchPayments();
       }
     } catch (error) {
@@ -537,6 +549,8 @@ const Payments: React.FC = () => {
           payment={selectedPayment}
           onClose={() => setShowDetails(false)}
           onUpdated={fetchPayments}
+          onEdit={handleEditPayment}
+          onDelete={handleDeletePayment}
         />
       )}
 

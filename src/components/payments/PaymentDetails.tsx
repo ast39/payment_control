@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
   X, 
@@ -6,7 +6,9 @@ import {
   Calendar, 
   CheckCircle,
   AlertTriangle,
-  Clock
+  Clock,
+  Edit,
+  Trash2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -36,9 +38,11 @@ interface PaymentDetailsProps {
   payment: Payment;
   onClose: () => void;
   onUpdated: () => void;
+  onEdit?: (payment: Payment) => void;
+  onDelete?: (paymentId: number) => void;
 }
 
-const PaymentDetails: React.FC<PaymentDetailsProps> = ({ payment, onClose, onUpdated }) => {
+const PaymentDetails: React.FC<PaymentDetailsProps> = ({ payment, onClose, onUpdated, onEdit, onDelete }) => {
   const { token } = useAuth();
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [paymentForm, setPaymentForm] = useState({
@@ -47,6 +51,13 @@ const PaymentDetails: React.FC<PaymentDetailsProps> = ({ payment, onClose, onUpd
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Проверяем что платеж существует, если нет - закрываем модальное окно
+  useEffect(() => {
+    if (!payment || !payment.id) {
+      onClose();
+    }
+  }, [payment, onClose]);
 
   const getPaymentStatus = (payment: Payment) => {
     if (payment.payment_date) {
@@ -227,6 +238,32 @@ const PaymentDetails: React.FC<PaymentDetailsProps> = ({ payment, onClose, onUpd
 
                 {/* Убрана дата окончания */}
               </div>
+            </div>
+          </div>
+
+          {/* Иконки быстрых действий */}
+          <div className="pt-4 border-t border-gray-200">
+            <div className="flex items-center justify-center space-x-4">
+              {onEdit && (
+                <button
+                  onClick={() => onEdit(payment)}
+                  className="flex items-center space-x-2 text-warning-600 hover:text-warning-800 p-2 rounded-lg hover:bg-warning-50 transition-colors"
+                  title="Редактировать платеж"
+                >
+                  <Edit className="w-5 h-5" />
+                  <span className="text-sm font-medium">Редактировать</span>
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  onClick={() => onDelete(payment.id)}
+                  className="flex items-center space-x-2 text-danger-600 hover:text-danger-800 p-2 rounded-lg hover:bg-danger-50 transition-colors"
+                  title="Удалить платеж"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  <span className="text-sm font-medium">Удалить</span>
+                </button>
+              )}
             </div>
           </div>
 
