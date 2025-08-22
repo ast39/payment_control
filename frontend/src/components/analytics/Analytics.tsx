@@ -30,6 +30,14 @@ interface Payment {
   currency_code: string;
   currency_symbol: string;
   due_date: string;
+  category_id?: number;
+  category_name?: string;
+}
+
+interface Category {
+  id: number;
+  name: string;
+  color: string;
 }
 
 interface MonthlyData {
@@ -41,9 +49,11 @@ interface MonthlyData {
 const Analytics: React.FC = () => {
   const { token } = useAuth();
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
 
   const fetchPayments = useCallback(async () => {
     if (!token) return;
@@ -69,11 +79,49 @@ const Analytics: React.FC = () => {
     }
   }, [token]);
 
+  const fetchCategories = useCallback(async () => {
+    if (!token) return;
+
+    try {
+      const response = await fetch('http://localhost:3001/api/categories', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setCategories(data);
+        // По умолчанию выбираем все категории
+        setSelectedCategories(data.map((cat: Category) => cat.id));
+      }
+    } catch (err) {
+      console.error('Ошибка загрузки категорий:', err);
+    }
+  }, [token]);
+
+  const handleCategoryToggle = (categoryId: number) => {
+    setSelectedCategories(prev => {
+      if (prev.includes(categoryId)) {
+        return prev.filter(id => id !== categoryId);
+      } else {
+        return [...prev, categoryId];
+      }
+    });
+  };
+
+  const handleSelectAllCategories = () => {
+    setSelectedCategories(categories.map(cat => cat.id));
+  };
+
+  const handleDeselectAllCategories = () => {
+    setSelectedCategories([]);
+  };
+
   useEffect(() => {
     if (token) {
       fetchPayments();
+      fetchCategories();
     }
-  }, [token, selectedYear, fetchPayments]);
+  }, [token, selectedYear, fetchPayments, fetchCategories]);
 
   const processData = (): { labels: string[]; datasets: any[] } => {
     const months = [
@@ -81,10 +129,16 @@ const Analytics: React.FC = () => {
       'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'
     ];
 
+    // Фильтруем платежи по выбранным категориям
+    const filteredPayments = payments.filter(payment => {
+      if (selectedCategories.length === 0) return false; // Если ничего не выбрано - не показываем ничего
+      return payment.category_id && selectedCategories.includes(payment.category_id);
+    });
+
     // Группируем траты по валютам и месяцам
     const monthlyData: MonthlyData = {};
     
-    payments.forEach(payment => {
+    filteredPayments.forEach(payment => {
       const paymentDate = new Date(payment.due_date);
       if (paymentDate.getFullYear() === selectedYear) {
         const monthKey = `${selectedYear}-${String(paymentDate.getMonth() + 1).padStart(2, '0')}`;
@@ -201,7 +255,7 @@ const Analytics: React.FC = () => {
         </div>
 
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          {/* Селектор года */}
+          {/* Селектор года и категорий */}
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold text-gray-900">График трат по месяцам</h3>
             <div className="flex items-center space-x-3">
@@ -215,6 +269,44 @@ const Analytics: React.FC = () => {
                   <option key={year} value={year}>{year}</option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          {/* Выбор категорий */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-medium text-gray-700">Категории:</h4>
+              <div className="flex space-x-2">
+                <button
+                  onClick={handleSelectAllCategories}
+                  className="px-3 py-1 text-xs rounded-md bg-primary-600 text-white hover:bg-primary-700 transition-colors"
+                >
+                  ВСЕ
+                </button>
+                <button
+                  onClick={handleDeselectAllCategories}
+                  className="px-3 py-1 text-xs rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors"
+                >
+                  СБРОСИТЬ
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex flex-wrap gap-3">
+              {categories.map((category) => (
+                <label
+                  key={category.id}
+                  className="flex items-center space-x-2 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedCategories.includes(category.id)}
+                    onChange={() => handleCategoryToggle(category.id)}
+                    className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                  />
+                  <span className="text-sm text-gray-700">{category.name}</span>
+                </label>
+              ))}
             </div>
           </div>
           
