@@ -43,11 +43,15 @@ const Analytics: React.FC = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   const fetchPayments = useCallback(async () => {
     if (!token) return;
 
     try {
+      setLoading(true);
+      setError(null);
+      
       const response = await fetch('http://localhost:3001/api/payments?period=all', {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -69,10 +73,9 @@ const Analytics: React.FC = () => {
     if (token) {
       fetchPayments();
     }
-  }, [token, fetchPayments]);
+  }, [token, selectedYear, fetchPayments]);
 
   const processData = (): { labels: string[]; datasets: any[] } => {
-    const currentYear = new Date().getFullYear();
     const months = [
       'Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн',
       'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'
@@ -83,8 +86,8 @@ const Analytics: React.FC = () => {
     
     payments.forEach(payment => {
       const paymentDate = new Date(payment.due_date);
-      if (paymentDate.getFullYear() === currentYear) {
-        const monthKey = `${currentYear}-${String(paymentDate.getMonth() + 1).padStart(2, '0')}`;
+      if (paymentDate.getFullYear() === selectedYear) {
+        const monthKey = `${selectedYear}-${String(paymentDate.getMonth() + 1).padStart(2, '0')}`;
         
         if (!monthlyData[payment.currency_code]) {
           monthlyData[payment.currency_code] = {};
@@ -106,7 +109,7 @@ const Analytics: React.FC = () => {
       ];
       
       const data = months.map((_, monthIndex) => {
-        const monthKey = `${currentYear}-${String(monthIndex + 1).padStart(2, '0')}`;
+        const monthKey = `${selectedYear}-${String(monthIndex + 1).padStart(2, '0')}`;
         return monthlyData[currencyCode][monthKey] || 0;
       });
 
@@ -198,6 +201,23 @@ const Analytics: React.FC = () => {
         </div>
 
         <div className="bg-white rounded-lg border border-gray-200 p-6">
+          {/* Селектор года */}
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold text-gray-900">График трат по месяцам</h3>
+            <div className="flex items-center space-x-3">
+              <label className="text-sm font-medium text-gray-700">Год:</label>
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white"
+              >
+                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).reverse().map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          
           <div className="h-96">
             <Line 
               data={chartData} 
@@ -218,7 +238,7 @@ const Analytics: React.FC = () => {
                   },
                   title: {
                     display: true,
-                    text: `Траты по месяцам ${new Date().getFullYear()}`,
+                    text: `Траты по месяцам ${selectedYear}`,
                     font: {
                       size: 18,
                       weight: 'bold',
@@ -294,7 +314,7 @@ const Analytics: React.FC = () => {
 
         {/* Общая статистика по валютам за год */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-6">Общая статистика за {new Date().getFullYear()} год</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-6">Общая статистика за {selectedYear} год</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {chartData.datasets.map((dataset, index) => {
               const totalAmount = dataset.data.reduce((sum: number, amount: number) => sum + amount, 0);
