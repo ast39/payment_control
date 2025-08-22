@@ -130,8 +130,7 @@ function createBaseData() {
 
 function createUsersSequentially() {
   const users = [
-    { username: 'admin', password: 'admin123', name: 'Администратор' },
-    { username: 'ast', password: '111111', name: 'Алексей' }
+    { username: 'admin', password: 'admin123', name: 'Администратор' }
   ];
   
   let currentIndex = 0;

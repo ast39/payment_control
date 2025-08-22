@@ -26,11 +26,11 @@ router.get('/calendar/:year/:month', (req, res) => {
     LEFT JOIN payment_categories pc ON p.category_id = pc.id
     LEFT JOIN payment_methods pm ON p.payment_method_id = pm.id
     WHERE p.user_id = ? 
-      AND substr(p.due_date, 1, 4) = ? AND substr(p.due_date, 6, 2) = ?
+      AND p.due_date LIKE ?
     ORDER BY p.due_date ASC
   `;
   
-  db.all(query, [userId, year, month.padStart(2, '0')], (err, payments) => {
+  db.all(query, [userId, `${year}-${month.padStart(2, '0')}-%`], (err, payments) => {
     if (err) {
       db.close();
       return res.status(500).json({ 
@@ -87,8 +87,8 @@ router.get('/stats', (req, res) => {
   // Статусы теперь определяются автоматически по датам
 
   // Получаем статистику за выбранный месяц
-  const monthFilter = month && year ? `AND substr(due_date, 1, 4) = ? AND substr(due_date, 6, 2) = ?` : '';
-  const monthParams = month && year ? [userId, year, month.padStart(2, '0')] : [userId];
+  const monthFilter = month && year ? `AND due_date LIKE ?` : '';
+  const monthParams = month && year ? [userId, `${year}-${month.padStart(2, '0')}-%`] : [userId];
   
   // Получаем общую статистику по количеству
   db.get(`
@@ -133,12 +133,7 @@ router.get('/stats', (req, res) => {
         });
       }
 
-      // Получаем ближайшие платежи (сегодня + 1 месяц)
-      const upcomingFilter = month && year ? 
-        `AND substr(due_date, 1, 4) = ? AND substr(due_date, 6, 2) = ?` : 
-        `AND due_date >= date('now') AND due_date <= date('now', '+1 month')`;
-      const upcomingParams = month && year ? [userId, year, month.padStart(2, '0')] : [userId];
-      
+      // Получаем ближайшие платежи (от сегодня до +15 дней)
       db.all(`
         SELECT p.*, 
                c.name as currency_name, c.code as currency_code, c.symbol as currency_symbol,
@@ -148,22 +143,15 @@ router.get('/stats', (req, res) => {
         LEFT JOIN currencies c ON p.currency_id = c.id
         LEFT JOIN payment_categories pc ON p.category_id = pc.id
         LEFT JOIN payment_methods pm ON p.payment_method_id = pm.id
-        WHERE p.user_id = ? AND p.payment_date IS NULL AND p.due_date >= date('now') ${upcomingFilter}
+        WHERE p.user_id = ? AND p.payment_date IS NULL AND p.due_date >= date('now') AND p.due_date <= date('now', '+15 days')
         ORDER BY p.due_date ASC 
         LIMIT 10
-      `, upcomingParams, (err, upcomingPayments) => {
+      `, [userId], (err, upcomingPayments) => {
         if (err) {
           console.error('Ошибка получения ближайших платежей:', err);
         }
 
-        // Получаем просроченные платежи (выбранный месяц)
-        const overdueFilter = month && year ? 
-          `AND substr(due_date, 1, 4) = ? AND substr(due_date, 6, 2) = ?` : 
-          `AND substr(due_date, 1, 7) = ?`;
-        const overdueParams = month && year ? 
-          [userId, year, month.padStart(2, '0')] : 
-          [userId, new Date().toISOString().substr(0, 7)];
-        
+        // Получаем ВСЕ просроченные платежи (от новых к старым)
         db.all(`
           SELECT p.*, 
                  c.name as currency_name, c.code as currency_code, c.symbol as currency_symbol,
@@ -174,21 +162,13 @@ router.get('/stats', (req, res) => {
           LEFT JOIN payment_categories pc ON p.category_id = pc.id
           LEFT JOIN payment_methods pm ON p.payment_method_id = pm.id
           WHERE p.user_id = ? AND p.payment_date IS NULL AND p.due_date < date('now')
-            ${overdueFilter}
-          ORDER BY p.due_date ASC
-        `, overdueParams, (err, overduePayments) => {
+          ORDER BY p.due_date DESC
+        `, [userId], (err, overduePayments) => {
           if (err) {
             console.error('Ошибка получения просроченных платежей:', err);
           }
 
-          // Получаем исполненные платежи (выбранный месяц)
-          const completedFilter = month && year ? 
-            `AND substr(due_date, 1, 4) = ? AND substr(due_date, 6, 2) = ?` : 
-            `AND substr(due_date, 1, 7) = ?`;
-          const completedParams = month && year ? 
-            [userId, year, month.padStart(2, '0')] : 
-            [userId, new Date().toISOString().substr(0, 7)];
-          
+          // Получаем исполненные платежи (все исполненные)
           db.all(`
             SELECT p.*, 
                    c.name as currency_name, c.code as currency_code, c.symbol as currency_symbol,
@@ -198,10 +178,9 @@ router.get('/stats', (req, res) => {
             LEFT JOIN currencies c ON p.currency_id = c.id
             LEFT JOIN payment_categories pc ON p.category_id = pc.id
             LEFT JOIN payment_methods pm ON p.payment_method_id = pm.id
-            WHERE p.user_id = ? AND p.payment_date IS NOT NULL ${completedFilter}
+            WHERE p.user_id = ? AND p.payment_date IS NOT NULL
             ORDER BY p.due_date DESC
-            LIMIT 10
-          `, completedParams, (err, completedPayments) => {
+          `, [userId], (err, completedPayments) => {
             if (err) {
               console.error('Ошибка получения исполненных платежей:', err);
             }

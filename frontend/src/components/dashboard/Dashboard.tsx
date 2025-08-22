@@ -67,6 +67,11 @@ const Dashboard: React.FC = () => {
   const [showPaymentDetails, setShowPaymentDetails] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+  const [expandedBlocks, setExpandedBlocks] = useState({
+    upcoming: false,
+    overdue: false,
+    completed: false
+  });
 
   const fetchDashboardData = useCallback(async () => {
     if (!token) return;
@@ -268,6 +273,22 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const toggleBlockExpansion = (blockType: 'upcoming' | 'overdue' | 'completed') => {
+    setExpandedBlocks(prev => ({
+      ...prev,
+      [blockType]: !prev[blockType]
+    }));
+  };
+
+  // Функция для подсчета дней в календаре
+  const getCalendarDaysInfo = () => {
+    const daysInMonth = getDaysInMonth().filter(day => day !== null).length;
+    const daysWithPayments = Object.keys(calendarData).length;
+    const freeDays = daysInMonth - daysWithPayments;
+    
+    return { daysInMonth, daysWithPayments, freeDays };
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -376,7 +397,7 @@ const Dashboard: React.FC = () => {
           <div className="card">
             <div className="flex items-start justify-between">
               <div className="flex flex-col items-center">
-                <div className="p-2 bg-danger-100 rounded-lg mb-2">
+                <div className="p-2 bg-success-100 rounded-lg mb-2">
                   <AlertTriangle className="w-6 h-6 text-danger-600" />
                 </div>
                 <div className="text-3xl font-bold text-danger-600">
@@ -402,30 +423,42 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-              {/* Календарь */}
-        <div className="card">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-gray-900">Календарь платежей</h2>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={goToPreviousMonth}
-                className="p-2 text-gray-400 hover:text-gray-600"
-              >
-                ←
-              </button>
-              <span className="text-lg font-medium text-gray-900">
-                {format(currentDate, 'MMMM yyyy', { locale: ru })}
-              </span>
-              <button
-                onClick={goToNextMonth}
-                className="p-2 text-gray-400 hover:text-gray-600"
-              >
-                →
-              </button>
+      {/* Плашка с информацией о днях */}
+      {(() => {
+        const { daysInMonth, daysWithPayments, freeDays } = getCalendarDaysInfo();
+        return (
+          <div className="card">
+            <div className="flex items-center justify-center space-x-8 p-4 text-sm text-gray-700">
+              <span>Дней в месяце: <span className="font-medium">{daysInMonth}</span></span>
+              <span>Дней с платежами: <span className="font-medium text-primary-600">{daysWithPayments}</span></span>
+              <span>Свободных дней: <span className="font-medium text-green-600">{freeDays}</span></span>
             </div>
           </div>
-          
+        );
+      })()}
 
+      {/* Календарь */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-semibold text-gray-900">Календарь платежей</h2>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={goToPreviousMonth}
+              className="p-2 text-gray-400 hover:text-gray-600"
+            >
+              ←
+            </button>
+            <span className="text-lg font-medium text-gray-900">
+              {format(currentDate, 'MMMM yyyy', { locale: ru })}
+            </span>
+            <button
+              onClick={goToNextMonth}
+              className="p-2 text-gray-400 hover:text-gray-600"
+            >
+              →
+            </button>
+          </div>
+        </div>
 
         <div className="grid grid-cols-7 gap-1">
           {/* Дни недели */}
@@ -505,13 +538,13 @@ const Dashboard: React.FC = () => {
 
       {/* Блоки с платежами */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Ближайшие платежи (сегодня + 1 месяц) */}
+        {/* Ближайшие платежи (от сегодня до +15 дней) */}
         <div className="card">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Ближайшие платежи</h3>
-          <p className="text-sm text-gray-600 mb-3">Сегодня + 1 месяц</p>
+          <p className="text-sm text-gray-600 mb-3">От сегодня до +15 дней</p>
           {upcomingPayments.length > 0 ? (
             <div className="space-y-3">
-              {upcomingPayments.map((payment) => (
+              {upcomingPayments.slice(0, expandedBlocks.upcoming ? undefined : 3).map((payment) => (
                 <div key={payment.id} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
                   <div>
                     <p className="font-medium text-gray-900">{payment.title}</p>
@@ -522,19 +555,27 @@ const Dashboard: React.FC = () => {
                   <span className="font-semibold text-blue-600">{payment.amount} {payment.currency_symbol || '₽'}</span>
                 </div>
               ))}
+              {upcomingPayments.length > 3 && (
+                <button
+                  onClick={() => toggleBlockExpansion('upcoming')}
+                  className="w-full p-2 text-sm text-primary-600 hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
+                >
+                  {expandedBlocks.upcoming ? 'Скрыть' : `Показать еще ${upcomingPayments.length - 3}`}
+                </button>
+              )}
             </div>
           ) : (
             <p className="text-gray-500 text-center py-4">Нет предстоящих платежей</p>
           )}
         </div>
 
-        {/* Просроченные платежи (этот месяц) */}
+        {/* Просроченные платежи (все просроченные) */}
         <div className="card">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Просроченные платежи</h3>
-          <p className="text-sm text-gray-600 mb-3">Этот месяц</p>
+          <p className="text-sm text-gray-600 mb-3">Все просроченные</p>
           {overduePayments.length > 0 ? (
             <div className="space-y-3">
-              {overduePayments.map((payment) => (
+              {overduePayments.slice(0, expandedBlocks.overdue ? undefined : 3).map((payment) => (
                 <div key={payment.id} className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
                   <div>
                     <p className="font-medium text-gray-900">{payment.title}</p>
@@ -545,19 +586,27 @@ const Dashboard: React.FC = () => {
                   <span className="font-semibold text-red-600">{payment.amount} {payment.currency_symbol || '₽'}</span>
                 </div>
               ))}
+              {overduePayments.length > 3 && (
+                <button
+                  onClick={() => toggleBlockExpansion('overdue')}
+                  className="w-full p-2 text-sm text-primary-600 hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
+                >
+                  {expandedBlocks.overdue ? 'Скрыть' : `Показать еще ${overduePayments.length - 3}`}
+                </button>
+              )}
             </div>
           ) : (
             <p className="text-gray-500 text-center py-4">Нет просроченных платежей</p>
           )}
         </div>
 
-        {/* Исполненные платежи (этот месяц) */}
+        {/* Исполненные платежи (за выбранный месяц) */}
         <div className="card">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Исполненные платежи</h3>
-          <p className="text-sm text-gray-600 mb-3">Этот месяц</p>
+          <p className="text-sm text-gray-600 mb-3">За выбранный месяц</p>
           {completedPayments.length > 0 ? (
             <div className="space-y-3">
-              {completedPayments.map((payment) => (
+              {completedPayments.slice(0, expandedBlocks.completed ? undefined : 3).map((payment) => (
                 <div key={payment.id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
                   <div>
                     <p className="font-medium text-gray-900">{payment.title}</p>
@@ -568,6 +617,14 @@ const Dashboard: React.FC = () => {
                   <span className="font-semibold text-green-600">{payment.amount} {payment.currency_symbol || '₽'}</span>
                 </div>
               ))}
+              {completedPayments.length > 3 && (
+                <button
+                  onClick={() => toggleBlockExpansion('completed')}
+                  className="w-full p-2 text-sm text-primary-600 hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
+                >
+                  {expandedBlocks.completed ? 'Скрыть' : `Показать еще ${completedPayments.length - 3}`}
+                </button>
+              )}
             </div>
           ) : (
             <p className="text-gray-500 text-center py-4">Нет исполненных платежей</p>
