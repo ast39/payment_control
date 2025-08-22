@@ -12,7 +12,8 @@ import {
   Copy,
   Coins,
   Tag,
-  Wallet
+  Wallet,
+  BarChart3
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -25,6 +26,7 @@ const Layout: React.FC = () => {
   const navigation = [
     { name: 'Дашборд', href: '/dashboard', icon: Calendar },
     { name: 'Платежи', href: '/payments', icon: CreditCard },
+    { name: 'Аналитика', href: '/analytics', icon: BarChart3 },
     { name: 'Валюты', href: '/currencies', icon: Coins },
     { name: 'Категории', href: '/categories', icon: Tag },
     { name: 'Способы оплаты', href: '/payment-methods', icon: Wallet },

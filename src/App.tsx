@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/auth/Login';
 import Dashboard from './components/dashboard/Dashboard';
 import Payments from './components/payments/Payments';
+import Analytics from './components/analytics/Analytics';
 import Currencies from './components/currencies/Currencies';
 import Categories from './components/categories/Categories';
 import PaymentMethods from './components/payment-methods/PaymentMethods';
@@ -42,6 +43,7 @@ const AppRoutes: React.FC = () => {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="payments" element={<Payments />} />
+        <Route path="analytics" element={<Analytics />} />
         <Route path="currencies" element={<Currencies />} />
         <Route path="categories" element={<Categories />} />
         <Route path="payment-methods" element={<PaymentMethods />} />
