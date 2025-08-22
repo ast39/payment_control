@@ -241,6 +241,31 @@ const Payments: React.FC = () => {
     }
   };
 
+  // Функция для подсчета итогов по валютам
+  const calculateTotals = () => {
+    const totals: { [key: string]: { count: number; amount: number; symbol: string; name: string } } = {};
+    
+    payments.forEach(payment => {
+      const currencyKey = payment.currency_id?.toString() || '1';
+      const currencySymbol = payment.currency_symbol || '₽';
+      const currencyName = payment.currency_name || 'Рубль';
+      
+      if (!totals[currencyKey]) {
+        totals[currencyKey] = {
+          count: 0,
+          amount: 0,
+          symbol: currencySymbol,
+          name: currencyName
+        };
+      }
+      
+      totals[currencyKey].count += 1;
+      totals[currencyKey].amount += Number(payment.amount) || 0;
+    });
+    
+    return totals;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -454,6 +479,28 @@ const Payments: React.FC = () => {
                 ))}
               </tbody>
             </table>
+            
+            {/* Итоги по валютам */}
+            {payments.length > 0 && (
+              <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div className="text-sm font-medium text-gray-700">
+                    Итого: <span className="text-gray-900">{payments.length}</span> платежей
+                  </div>
+                  <div className="flex flex-wrap gap-4">
+                    {Object.values(calculateTotals()).map((total, index) => (
+                      <div key={index} className="flex items-center space-x-2">
+                        <span className="text-sm text-gray-600">{total.name}:</span>
+                        <span className="text-sm font-semibold text-gray-900">
+                          {total.amount.toLocaleString('ru-RU')} {total.symbol}
+                        </span>
+                        <span className="text-xs text-gray-500">({total.count})</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="text-center py-12">
