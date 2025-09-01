@@ -8,6 +8,7 @@ import {
   AlertCircle,
   Play
 } from 'lucide-react';
+import PushNotifications from '../PushNotifications';
 
 interface UserSettings {
   telegram_bot_token: string | null;
@@ -326,6 +327,11 @@ const Settings: React.FC = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Push уведомления */}
+      <div className="mt-6">
+        <PushNotifications />
       </div>
     </div>
   );

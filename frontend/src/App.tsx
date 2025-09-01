@@ -11,6 +11,8 @@ import PaymentMethods from './components/payment-methods/PaymentMethods';
 import Seeding from './components/seeding/Seeding';
 import Settings from './components/settings/Settings';
 import Layout from './components/layout/Layout';
+import PWAInstaller from './components/PWAInstaller';
+import { useTokenValidation } from './hooks/useTokenValidation';
 
 // Защищенный маршрут
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -20,6 +22,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 const AppRoutes: React.FC = () => {
   const { loading } = useAuth();
+  useTokenValidation(); // Автоматическая проверка токена
 
   if (loading) {
     return (
@@ -56,11 +59,12 @@ const AppRoutes: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <Router>
+    <Router>
+      <AuthProvider>
         <AppRoutes />
-      </Router>
-    </AuthProvider>
+        <PWAInstaller />
+      </AuthProvider>
+    </Router>
   );
 };
 

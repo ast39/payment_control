@@ -81,6 +81,15 @@ router.post('/login', (req, res) => {
   });
 });
 
+// Проверка токена
+router.get('/verify', authenticateToken, (req, res) => {
+  // Если middleware прошел - токен валиден
+  res.json({ 
+    message: 'Токен валиден',
+    user: req.user 
+  });
+});
+
 // Регистрация
 router.post('/register', (req, res) => {
   const { username, password, name } = req.body;

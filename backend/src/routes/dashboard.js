@@ -133,25 +133,10 @@ router.get('/stats', (req, res) => {
         });
       }
 
-      // Получаем ближайшие платежи (от сегодня до +15 дней)
-      db.all(`
-        SELECT p.*, 
-               c.name as currency_name, c.code as currency_code, c.symbol as currency_symbol,
-               pc.name as category_name, pc.color as category_color,
-               pm.name as payment_method_name
-        FROM payments p
-        LEFT JOIN currencies c ON p.currency_id = c.id
-        LEFT JOIN payment_categories pc ON p.category_id = pc.id
-        LEFT JOIN payment_methods pm ON p.payment_method_id = pm.id
-        WHERE p.user_id = ? AND p.payment_date IS NULL AND p.due_date >= date('now') AND p.due_date <= date('now', '+15 days')
-        ORDER BY p.due_date ASC 
-        LIMIT 10
-      `, [userId], (err, upcomingPayments) => {
-        if (err) {
-          console.error('Ошибка получения ближайших платежей:', err);
-        }
-
-        // Получаем ВСЕ просроченные платежи (от новых к старым)
+              // Получаем ближайшие платежи (от сегодня до +15 дней) - независимо от выбранного месяца
+        const upcomingPaymentsQuery = `WHERE p.user_id = ? AND p.payment_date IS NULL AND p.due_date >= date('now') AND p.due_date <= date('now', '+15 days')`;
+        const upcomingPaymentsParams = [userId];
+        
         db.all(`
           SELECT p.*, 
                  c.name as currency_name, c.code as currency_code, c.symbol as currency_symbol,
@@ -161,14 +146,48 @@ router.get('/stats', (req, res) => {
           LEFT JOIN currencies c ON p.currency_id = c.id
           LEFT JOIN payment_categories pc ON p.category_id = pc.id
           LEFT JOIN payment_methods pm ON p.payment_method_id = pm.id
-          WHERE p.user_id = ? AND p.payment_date IS NULL AND p.due_date < date('now')
+          ${upcomingPaymentsQuery}
+          ORDER BY p.due_date ASC 
+          LIMIT 10
+        `, upcomingPaymentsParams, (err, upcomingPayments) => {
+        if (err) {
+          console.error('Ошибка получения ближайших платежей:', err);
+        }
+
+        // Получаем просроченные платежи за текущий месяц
+        const overduePaymentsQuery = month && year ? 
+          `WHERE p.user_id = ? AND p.payment_date IS NULL AND p.due_date < date('now') AND p.due_date LIKE ?` :
+          `WHERE p.user_id = ? AND p.payment_date IS NULL AND p.due_date < date('now')`;
+        
+        const overduePaymentsParams = month && year ? 
+          [userId, `${year}-${month.padStart(2, '0')}-%`] : 
+          [userId];
+        
+        db.all(`
+          SELECT p.*, 
+                 c.name as currency_name, c.code as currency_code, c.symbol as currency_symbol,
+                 pc.name as category_name, pc.color as category_color,
+                 pm.name as payment_method_name
+          FROM payments p
+          LEFT JOIN currencies c ON p.currency_id = c.id
+          LEFT JOIN payment_categories pc ON p.category_id = pc.id
+          LEFT JOIN payment_methods pm ON p.payment_method_id = pm.id
+          ${overduePaymentsQuery}
           ORDER BY p.due_date DESC
-        `, [userId], (err, overduePayments) => {
+        `, overduePaymentsParams, (err, overduePayments) => {
           if (err) {
             console.error('Ошибка получения просроченных платежей:', err);
           }
 
-          // Получаем исполненные платежи (все исполненные)
+          // Получаем исполненные платежи за текущий месяц
+          const completedPaymentsQuery = month && year ? 
+            `WHERE p.user_id = ? AND p.payment_date IS NOT NULL AND p.due_date LIKE ?` :
+            `WHERE p.user_id = ? AND p.payment_date IS NOT NULL`;
+          
+          const completedPaymentsParams = month && year ? 
+            [userId, `${year}-${month.padStart(2, '0')}-%`] : 
+            [userId];
+          
           db.all(`
             SELECT p.*, 
                    c.name as currency_name, c.code as currency_code, c.symbol as currency_symbol,
@@ -178,9 +197,9 @@ router.get('/stats', (req, res) => {
             LEFT JOIN currencies c ON p.currency_id = c.id
             LEFT JOIN payment_categories pc ON p.category_id = pc.id
             LEFT JOIN payment_methods pm ON p.payment_method_id = pm.id
-            WHERE p.user_id = ? AND p.payment_date IS NOT NULL
+            ${completedPaymentsQuery}
             ORDER BY p.due_date DESC
-          `, [userId], (err, completedPayments) => {
+          `, completedPaymentsParams, (err, completedPayments) => {
             if (err) {
               console.error('Ошибка получения исполненных платежей:', err);
             }

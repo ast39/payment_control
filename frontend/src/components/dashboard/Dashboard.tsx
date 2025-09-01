@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useApi } from '../../hooks/useApi';
 import { 
   CreditCard, 
   AlertTriangle,
@@ -55,6 +56,7 @@ interface DashboardStats {
 
 const Dashboard: React.FC = () => {
   const { token } = useAuth();
+  const api = useApi();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [calendarData, setCalendarData] = useState<Record<string, Payment[]>>({});
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -82,11 +84,8 @@ const Dashboard: React.FC = () => {
       const month = String(currentDate.getMonth() + 1).padStart(2, '0');
 
       // Получаем данные календаря
-      const calendarResponse = await fetch(
-        `http://localhost:3001/api/dashboard/calendar/${year}/${month}`,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
+      const calendarResponse = await api.get(
+        `http://localhost:3001/api/dashboard/calendar/${year}/${month}`
       );
       
       if (calendarResponse.ok) {
@@ -118,11 +117,8 @@ const Dashboard: React.FC = () => {
       }
 
       // Получаем статистику
-      const statsResponse = await fetch(
-        `http://localhost:3001/api/dashboard/stats?year=${year}&month=${month}`,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
+      const statsResponse = await api.get(
+        `http://localhost:3001/api/dashboard/stats?year=${year}&month=${month}`
       );
       
       if (statsResponse.ok) {
@@ -137,7 +133,7 @@ const Dashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentDate, token]);
+  }, [currentDate, token, api]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -244,10 +240,7 @@ const Dashboard: React.FC = () => {
     }
     
     try {
-      const response = await fetch(`http://localhost:3001/api/payments/${paymentId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.delete(`http://localhost:3001/api/payments/${paymentId}`);
       
       if (response.ok) {
         // Сначала закрываем модальное окно
