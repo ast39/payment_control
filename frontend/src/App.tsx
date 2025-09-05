@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/auth/Login';
@@ -16,8 +16,69 @@ import { useTokenValidation } from './hooks/useTokenValidation';
 
 // Защищенный маршрут
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, checkTokenValidity } = useAuth();
+  const [isValidating, setIsValidating] = useState(true);
+
+  useEffect(() => {
+    const validateToken = async () => {
+      if (isAuthenticated) {
+        const isValid = await checkTokenValidity();
+        if (!isValid) {
+          // Токен невалиден - редирект произойдет автоматически через logout в checkTokenValidity
+          return;
+        }
+      }
+      setIsValidating(false);
+    };
+
+    validateToken();
+  }, [isAuthenticated, checkTokenValidity]);
+
+  if (isValidating) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Проверка авторизации...</p>
+        </div>
+      </div>
+    );
+  }
+
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
+};
+
+// Глобальный перехватчик ошибок авторизации
+const GlobalErrorHandler: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { logout } = useAuth();
+
+  useEffect(() => {
+    // Перехватываем все fetch запросы
+    const originalFetch = window.fetch;
+    
+    window.fetch = async (...args) => {
+      try {
+        const response = await originalFetch(...args);
+        
+        // Если получили 401 или 403 - разлогиниваемся
+        if (response.status === 401 || response.status === 403) {
+          console.log('Обнаружена ошибка авторизации, разлогиниваемся...');
+          logout();
+        }
+        
+        return response;
+      } catch (error) {
+        throw error;
+      }
+    };
+
+    // Восстанавливаем оригинальный fetch при размонтировании
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, [logout]);
+
+  return <>{children}</>;
 };
 
 const AppRoutes: React.FC = () => {
@@ -61,8 +122,10 @@ const App: React.FC = () => {
   return (
     <Router>
       <AuthProvider>
-        <AppRoutes />
-        <PWAInstaller />
+        <GlobalErrorHandler>
+          <AppRoutes />
+          <PWAInstaller />
+        </GlobalErrorHandler>
       </AuthProvider>
     </Router>
   );

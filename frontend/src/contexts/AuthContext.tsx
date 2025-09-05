@@ -37,6 +37,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  const checkTokenValidity = async (): Promise<boolean> => {
+    if (!token) return false;
+    
+    try {
+      const response = await fetch('http://localhost:3001/api/auth/verify', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        // Токен невалиден - разлогиниваем
+        logout();
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Ошибка проверки токена:', error);
+      logout();
+      return false;
+    }
+  };
+
   useEffect(() => {
     // Проверяем сохраненный токен при загрузке
     const savedToken = localStorage.getItem('token');
@@ -46,14 +71,44 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         setToken(savedToken);
         setUser(JSON.parse(savedUser));
+        
+        // Немедленно проверяем валидность токена
+        const verifyToken = async () => {
+          try {
+            const response = await fetch('http://localhost:3001/api/auth/verify', {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${savedToken}`
+              }
+            });
+            
+            if (!response.ok) {
+              // Токен невалиден - очищаем состояние
+              setToken(null);
+              setUser(null);
+              localStorage.removeItem('token');
+              localStorage.removeItem('user');
+            }
+          } catch (error) {
+            console.error('Ошибка проверки токена при инициализации:', error);
+            setToken(null);
+            setUser(null);
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+          }
+          setLoading(false);
+        };
+        
+        verifyToken();
       } catch (error) {
         console.error('Ошибка парсинга сохраненного пользователя:', error);
         localStorage.removeItem('token');
         localStorage.removeItem('user');
+        setLoading(false);
       }
+    } else {
+      setLoading(false);
     }
-    
-    setLoading(false);
   }, []);
 
   const login = async (username: string, password: string) => {
@@ -91,31 +146,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     navigate('/login');
-  };
-
-  const checkTokenValidity = async (): Promise<boolean> => {
-    if (!token) return false;
-    
-    try {
-      const response = await fetch('http://localhost:3001/api/auth/verify', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (!response.ok) {
-        // Токен невалиден - разлогиниваем
-        logout();
-        return false;
-      }
-      
-      return true;
-    } catch (error) {
-      console.error('Ошибка проверки токена:', error);
-      logout();
-      return false;
-    }
   };
 
   const value: AuthContextType = {
